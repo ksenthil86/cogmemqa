@@ -1,6 +1,6 @@
 # Sprint v1 — Tasks: Memory Backbone (B1 + B2)
 
-## Status: In Progress (4/10 complete)
+## Status: In Progress (5/10 complete)
 
 ---
 
@@ -68,7 +68,7 @@
 
 ---
 
-- [ ] Task 5: INGEST operation (P0)
+- [x] Task 5: INGEST operation (P0)
   - Acceptance: `memory_api.ingest_node(driver, node)` MERGEs the node on its `id`
     (idempotent). `memory_api.ingest_edge(driver, edge)` MERGEs the relationship,
     setting `valid_from=now()` on creation. Calling both twice does not duplicate data.
@@ -77,6 +77,10 @@
       `ingest_edge(driver, edge: EdgeModel) -> None`
     - `tests/test_ingest.py` — integration test: ingest same Requirement twice, assert
       node count = 1; ingest an edge, assert property `valid_from` is set
+  - Completed: 2026-06-19 — MERGE on (label, id) for nodes; ON CREATE SET for edge
+    valid_from ensures second ingest does not overwrite. Edge type derived via
+    CamelCase→UPPER_SNAKE conversion of class name; from/to labels loaded from schema
+    YAML at import time. 10 integration tests green; 42 total; bandit clean.
 
 ---
 
