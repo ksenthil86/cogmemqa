@@ -1,6 +1,6 @@
 # Sprint v1 — Tasks: Memory Backbone (B1 + B2)
 
-## Status: In Progress (9/10 complete)
+## Status: COMPLETE (10/10)
 
 ---
 
@@ -161,7 +161,7 @@
 
 ---
 
-- [ ] Task 10: End-to-end integration smoke test (P1)
+- [x] Task 10: End-to-end integration smoke test (P1)
   - Acceptance: One pytest test (`tests/test_e2e.py`) exercises the full B1 + B2 surface
     in sequence — provision schema, ingest a full Requirement→Functionality→Component→File→
     Test→Judgment chain, retrieve it as supervisor role, reconcile one edge, write provenance,
@@ -175,6 +175,12 @@
         5. Calls `reconcile` on one edge, asserts old edge expired
         6. Calls `write_provenance`, asserts Judgment + traces exist
         7. Calls `audit_trail(requirement_id)`, asserts non-empty result
+  - Completed: 2026-06-19 — All 7 steps pass in sequence. 19 nodes (one per label),
+    all 11 edge types ingested. Supervisor retrieve confirms 11 connected nodes visible
+    (8 isolated nodes have no schema edges by design). Reconcile verified via Cypher query.
+    write_provenance Judgment has 2 HAS_STEP + 1 INFORMED_BY confirmed. Audit trail
+    returns ≥1 row with required 6 keys; provenance Judgment appears in trail.
+    77 total tests green; bandit clean; provision_schema idempotent.
 
 ---
 
@@ -196,7 +202,7 @@ Task 1 (scaffold)
 
 ## Sprint v1 Definition of Done
 
-- [ ] `pytest tests/` passes green with no skips
-- [ ] `python scripts/provision_schema.py` is idempotent on a fresh Neo4j
-- [ ] `tests/test_e2e.py::test_memory_backbone_e2e` is the single source of integration truth
-- [ ] No agent code exists yet — all logic is graph + memory API only
+- [x] `pytest tests/` passes green with no skips (77 tests)
+- [x] `python scripts/provision_schema.py` is idempotent on a fresh Neo4j
+- [x] `tests/test_e2e.py::test_memory_backbone_e2e` is the single source of integration truth
+- [x] No agent code exists yet — all logic is graph + memory API only
