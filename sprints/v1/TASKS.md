@@ -1,6 +1,6 @@
 # Sprint v1 — Tasks: Memory Backbone (B1 + B2)
 
-## Status: In Progress (7/10 complete)
+## Status: In Progress (8/10 complete)
 
 ---
 
@@ -119,7 +119,7 @@
 
 ---
 
-- [ ] Task 8: Provenance write-primitives (P1)
+- [x] Task 8: Provenance write-primitives (P1)
   - Acceptance: `memory_api.write_provenance(driver, judgment, trace_steps, informed_by_ids)`
     creates a `Judgment` node, N `ReasoningTrace` nodes linked via `HAS_STEP` edges, and
     `INFORMED_BY` edges from the Judgment to each node in `informed_by_ids`. All nodes are
@@ -130,6 +130,11 @@
     - `tests/test_provenance.py` — integration test: write a judgment with 2 trace steps
       and 1 informed_by link; query the Judgment node and assert both HAS_STEP and
       INFORMED_BY relationships exist
+  - Completed: 2026-06-19 — ingest_node for Judgment; loop over trace_steps doing
+    ingest_node + HasStepEdge; loop over informed_by_ids doing InformedByEdge (label-less
+    MATCH via existing ingest_edge INFORMED_BY path). All writes MERGE-based, fully
+    idempotent. 9 integration tests: returns id, creates nodes, HAS_STEP edges, INFORMED_BY
+    edges, zero-arg edge cases, idempotency. 69 total tests green; bandit clean.
 
 ---
 

@@ -13,10 +13,11 @@ from __future__ import annotations
 import os
 import re
 import yaml
+from datetime import datetime, timezone
 from neo4j import Driver
 from pydantic import BaseModel
 
-from src.models import BaseNode, BaseEdge
+from src.models import BaseNode, BaseEdge, Judgment, ReasoningTrace, HasStepEdge, InformedByEdge
 from src.retrieval_policies import RETRIEVAL_POLICIES
 
 # ─── Schema maps (loaded once at import) ──────────────────────────────────────
@@ -246,6 +247,51 @@ def reconcile(driver: Driver, entity_id: str, new_edge: BaseEdge) -> None:
             eid=entity_id,
         )
     ingest_edge(driver, new_edge)
+
+
+# ─── PROVENANCE ───────────────────────────────────────────────────────────────
+
+
+def write_provenance(
+    driver: Driver,
+    judgment: Judgment,
+    trace_steps: list[ReasoningTrace],
+    informed_by_ids: list[str],
+) -> str:
+    """
+    Write an auditable provenance record for an agent decision.
+
+    Creates:
+      - The Judgment node.
+      - One ReasoningTrace node per step in *trace_steps*, linked from the
+        Judgment via HAS_STEP edges.
+      - One INFORMED_BY edge from the Judgment to each id in *informed_by_ids*
+        (the nodes referenced must already exist in the graph).
+
+    All writes are idempotent (MERGE-based via ingest_node / ingest_edge).
+
+    Returns the judgment's id.
+    """
+    now = datetime.now(tz=timezone.utc)
+
+    ingest_node(driver, judgment)
+
+    for trace in trace_steps:
+        ingest_node(driver, trace)
+        ingest_edge(driver, HasStepEdge(
+            from_id=judgment.id,
+            to_id=trace.id,
+            valid_from=now,
+        ))
+
+    for target_id in informed_by_ids:
+        ingest_edge(driver, InformedByEdge(
+            from_id=judgment.id,
+            to_id=target_id,
+            valid_from=now,
+        ))
+
+    return judgment.id
 
 
 # ─── MemoryAPI facade (filled in Tasks 7-9) ────────────────────────────────────
