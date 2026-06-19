@@ -1,6 +1,6 @@
 # Sprint v2 — Tasks: Bootstrap & Test Design (B3 + B4)
 
-## Status: In Progress (2/10 complete)
+## Status: In Progress (3/10 complete)
 
 ---
 
@@ -51,7 +51,7 @@
 
 ---
 
-- [ ] Task 3: B3 — `parse_spec()`: LLM prompt → validated ParsedSpec (P0)
+- [x] Task 3: B3 — `parse_spec()`: LLM prompt → validated ParsedSpec (P0)
   - Acceptance:
     - `src/agents/requirements_parser.py` defines `RequirementsParserAgent(BaseAgent)`.
     - `agent.parse_spec(spec_text: str) -> ParsedSpec` builds a prompt instructing the LLM
@@ -64,6 +64,12 @@
   - Files:
     - `src/agents/requirements_parser.py` — `RequirementsParserAgent.parse_spec()`
     - `tests/test_requirements_parser.py` — unit tests (stub `llm_fn`, no Neo4j)
+  - Completed: 2026-06-19 — Prompt embeds schema field names, rules for deterministic
+    slugs, and the spec text; instructs LLM to return JSON only (no fences). _strip_fences()
+    uses two regex substitutions to remove ```[lang]\n and \n``` from any side of the
+    response. model_validate_json() re-raises as ValueError with context on failure.
+    12 unit tests: valid JSON, fenced JSON, wrong-schema JSON, empty response, prompt
+    content checks. 120 total tests green; bandit clean.
 
 ---
 
