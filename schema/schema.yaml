@@ -1,0 +1,470 @@
+version: "1.0"
+description: >
+  CoGMEM-QA four-layer bi-temporal context graph schema.
+  All edges carry valid_from / valid_to for historical and contradiction queries.
+
+# ─── Layer definitions ────────────────────────────────────────────────────────
+# Each layer represents a stage in the software lifecycle.
+# Node labels are assigned to exactly one layer.
+
+layers:
+  requirements:
+    description: "Business requirements and acceptance criteria — the 'why'"
+    labels:
+      - Requirement
+      - AcceptanceCriterion
+      - Actor
+
+  capability:
+    description: "Stable behavioural abstractions — the graph's drift-resistant spine"
+    labels:
+      - Functionality
+      - Component
+
+  implementation:
+    description: "Technical artefacts that change frequently"
+    labels:
+      - File
+      - Contract
+      - Endpoint
+      - UIElement
+
+  evidence:
+    description: "Continuously growing proof layer — test runs, failures, commits"
+    labels:
+      - Test
+      - TestRun
+      - Failure
+      - Artifact
+      - Commit
+      - Scan
+
+  reasoning:
+    description: "Auditable agent decisions with full provenance"
+    labels:
+      - Judgment
+      - ReasoningTrace
+      - SecurityFinding
+      - Report
+
+# ─── Temporal property anchor ─────────────────────────────────────────────────
+# Reused on every edge via YAML alias (*temporal).
+
+_temporal: &temporal
+  - name: valid_from
+    type: datetime
+    required: true
+  - name: valid_to
+    type: datetime
+    required: false
+
+# ─── Node definitions ─────────────────────────────────────────────────────────
+
+nodes:
+  # ── Requirements layer ──────────────────────────────────────────────────────
+
+  - label: Requirement
+    layer: requirements
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: title
+        type: string
+        required: true
+        index: true
+      - name: priority
+        type: string
+        required: false
+      - name: reg_control
+        type: string
+        required: false
+
+  - label: AcceptanceCriterion
+    layer: requirements
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: statement
+        type: string
+        required: true
+      - name: status
+        type: string
+        required: false
+
+  - label: Actor
+    layer: requirements
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: name
+        type: string
+        required: true
+      - name: role
+        type: string
+        required: false
+
+  # ── Capability layer ────────────────────────────────────────────────────────
+
+  - label: Functionality
+    layer: capability
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: name
+        type: string
+        required: true
+        index: true
+      - name: description
+        type: string
+        required: false
+      - name: status
+        type: string
+        required: false
+
+  - label: Component
+    layer: capability
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: name
+        type: string
+        required: true
+        index: true
+      - name: status
+        type: string
+        required: false
+
+  # ── Implementation layer ────────────────────────────────────────────────────
+
+  - label: File
+    layer: implementation
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: path
+        type: string
+        required: true
+        index: true
+      - name: language
+        type: string
+        required: false
+      - name: module
+        type: string
+        required: false
+
+  - label: Contract
+    layer: implementation
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: name
+        type: string
+        required: true
+
+  - label: Endpoint
+    layer: implementation
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: path
+        type: string
+        required: true
+        index: true
+      - name: method
+        type: string
+        required: true
+
+  - label: UIElement
+    layer: implementation
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: name
+        type: string
+        required: true
+      - name: type
+        type: string
+        required: false
+
+  # ── Evidence layer ──────────────────────────────────────────────────────────
+
+  - label: Test
+    layer: evidence
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: name
+        type: string
+        required: true
+      - name: type
+        type: string
+        required: false
+      - name: status
+        type: string
+        required: false
+
+  - label: TestRun
+    layer: evidence
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: outcome
+        type: string
+        required: true
+      - name: duration
+        type: float
+        required: false
+      - name: timestamp
+        type: datetime
+        required: true
+
+  - label: Failure
+    layer: evidence
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: error_signature
+        type: string
+        required: true
+        index: true
+      - name: label
+        type: string
+        required: false
+      - name: confidence
+        type: float
+        required: false
+
+  - label: Artifact
+    layer: evidence
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: type
+        type: string
+        required: true
+      - name: uri
+        type: string
+        required: true
+      - name: hash
+        type: string
+        required: false
+
+  - label: Commit
+    layer: evidence
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: sha
+        type: string
+        required: true
+        index: true
+      - name: message
+        type: string
+        required: true
+      - name: author
+        type: string
+        required: false
+      - name: timestamp
+        type: datetime
+        required: true
+
+  - label: Scan
+    layer: evidence
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: tool
+        type: string
+        required: true
+      - name: timestamp
+        type: datetime
+        required: true
+      - name: commit_sha
+        type: string
+        required: false
+
+  # ── Reasoning layer ─────────────────────────────────────────────────────────
+
+  - label: Judgment
+    layer: reasoning
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: agent_role
+        type: string
+        required: true
+      - name: label
+        type: string
+        required: true
+      - name: confidence
+        type: float
+        required: false
+      - name: reasoning
+        type: string
+        required: false
+
+  - label: ReasoningTrace
+    layer: reasoning
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: agent_role
+        type: string
+        required: true
+      - name: decision
+        type: string
+        required: true
+      - name: timestamp
+        type: datetime
+        required: true
+
+  - label: SecurityFinding
+    layer: reasoning
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: severity
+        type: string
+        required: true
+      - name: status
+        type: string
+        required: false
+      - name: title
+        type: string
+        required: true
+
+  - label: Report
+    layer: reasoning
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: summary
+        type: string
+        required: true
+      - name: created_at
+        type: datetime
+        required: true
+
+# ─── Edge definitions ─────────────────────────────────────────────────────────
+# Cross-layer relationships. All carry valid_from / valid_to (bi-temporal).
+
+edges:
+  # Requirements → Capability
+  - type: REALIZED_BY
+    from_label: Requirement
+    to_label: Functionality
+    description: "A business requirement is realised by a functionality"
+    properties: *temporal
+
+  # Capability → Capability
+  - type: COMPOSED_OF
+    from_label: Functionality
+    to_label: Component
+    description: "A functionality is composed of one or more components"
+    properties: *temporal
+
+  # Capability → Implementation
+  - type: IMPLEMENTED_BY
+    from_label: Component
+    to_label: File
+    description: "A component is implemented by a source file"
+    properties: *temporal
+
+  # Evidence → Capability
+  - type: VERIFIES
+    from_label: Test
+    to_label: Functionality
+    description: "A test verifies that a functionality behaves correctly"
+    properties: *temporal
+
+  # Evidence → Requirements
+  - type: COVERS_CRITERION
+    from_label: Test
+    to_label: AcceptanceCriterion
+    description: "A test covers a specific acceptance criterion"
+    properties: *temporal
+
+  # Reasoning → Capability
+  - type: AFFECTS
+    from_label: SecurityFinding
+    to_label: Component
+    description: "A security finding affects a component (and propagates upward)"
+    properties: *temporal
+
+  # Reasoning → (multi-target: any context node a judgment draws on)
+  - type: INFORMED_BY
+    from_label: Judgment
+    to_labels:
+      - Requirement
+      - AcceptanceCriterion
+      - Functionality
+      - Component
+      - File
+    description: "A judgment is informed by context nodes from any layer"
+    properties: *temporal
+
+  # Reasoning → Reasoning
+  - type: HAS_STEP
+    from_label: Judgment
+    to_label: ReasoningTrace
+    description: "A judgment has one or more reasoning trace steps"
+    properties: *temporal
+
+  # Evidence → Implementation
+  - type: MODIFIES
+    from_label: Commit
+    to_label: File
+    description: "A commit modifies a file"
+    properties: *temporal
+
+  # Evidence → Evidence
+  - type: INSTANCE_OF
+    from_label: TestRun
+    to_label: Test
+    description: "A test run is an execution instance of a test"
+    properties: *temporal
+
+  # Requirements → Reasoning
+  - type: JUDGED
+    from_label: AcceptanceCriterion
+    to_label: Judgment
+    description: "An acceptance criterion is judged by an agent decision"
+    properties: *temporal
