@@ -1,6 +1,6 @@
 # Sprint v2 — Tasks: Bootstrap & Test Design (B3 + B4)
 
-## Status: In Progress (9/10 complete)
+## Status: COMPLETE (10/10)
 
 ---
 
@@ -222,7 +222,7 @@
 
 ---
 
-- [ ] Task 10: Phase 2 e2e smoke test (P0)
+- [x] Task 10: Phase 2 e2e smoke test (P0)
   - Acceptance: `tests/test_e2e_phase2.py::test_bootstrap_and_test_design_e2e` passes.
     The test uses a stub `llm_fn` (no live LLM calls) and:
     1. Calls `provision_schema` (idempotent, reuses Sprint v1 provisioner).
@@ -238,6 +238,14 @@
     9. Asserts at least one `Judgment` with `label="TEST_PROPOSED"` exists.
   - Files:
     - `tests/test_e2e_phase2.py` — single test function `test_bootstrap_and_test_design_e2e`
+  - Completed: 2026-06-19 — Clean-slate helper DETACH DELETEs all Meridian nodes +
+    their Judgment/ReasoningTrace chains at test start (isolation). B3.run() seeds 5
+    Req + 5 Func + 10 AC nodes; asserts by ID membership. Seeds File + Commit nodes
+    (comp-account-opening → file → commit) to satisfy audit_trail's full Cypher chain.
+    B4 stub llm_fn extracts ac_id from prompt via regex, returns ProposedTest with
+    correct verifies_functionality_id. Asserts 10 Test nodes, 10 COVERS_CRITERION edges,
+    0 Meridian gaps, non-empty audit_trail, ≥10 TEST_PROPOSED Judgments. 162 total
+    tests green; bandit clean. Sprint v2 Definition of Done met.
 
 ---
 
@@ -258,9 +266,9 @@ Task 1 (LLM client + BaseAgent)
 
 ## Sprint v2 Definition of Done
 
-- [ ] `pytest tests/` passes green with no skips
-- [ ] `RequirementsParserAgent.run()` seeds Meridian graph (with stub llm_fn)
-- [ ] `coverage_gaps()` returns `[]` after B4 ingests tests
-- [ ] `tests/test_e2e_phase2.py::test_bootstrap_and_test_design_e2e` is the Phase 2 gate
-- [ ] Bandit scan on `src/` is clean
-- [ ] No live LLM calls needed to run the test suite
+- [x] `pytest tests/` passes green with no skips (162 tests)
+- [x] `RequirementsParserAgent.run()` seeds Meridian graph (with stub llm_fn)
+- [x] `coverage_gaps()` returns `[]` after B4 ingests tests
+- [x] `tests/test_e2e_phase2.py::test_bootstrap_and_test_design_e2e` is the Phase 2 gate
+- [x] Bandit scan on `src/` is clean
+- [x] No live LLM calls needed to run the test suite
