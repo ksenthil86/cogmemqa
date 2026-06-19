@@ -1,0 +1,126 @@
+{
+  "actors": [
+    {
+      "id": "actor-customer",
+      "name": "Customer",
+      "role": "account_holder"
+    },
+    {
+      "id": "actor-compliance",
+      "name": "Compliance Officer",
+      "role": "compliance_officer"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "req-account-opening",
+      "title": "Account Opening",
+      "priority": "P0",
+      "reg_control": "AML-KYC",
+      "acceptance_criteria": [
+        {
+          "id": "ac-ao-1",
+          "statement": "Customer can register a new savings account by providing personal details (name, DOB, address, national ID).",
+          "actor_role": "account_holder"
+        },
+        {
+          "id": "ac-ao-2",
+          "statement": "System rejects duplicate account registrations where the same national ID is already on file and returns a clear error message.",
+          "actor_role": "account_holder"
+        }
+      ],
+      "functionality_id": "func-account-opening",
+      "functionality_name": "Account Opening Flow",
+      "component_id": "comp-account-opening",
+      "component_name": "AccountController"
+    },
+    {
+      "id": "req-kyc",
+      "title": "KYC Verification",
+      "priority": "P0",
+      "reg_control": "KYC-AML-2023",
+      "acceptance_criteria": [
+        {
+          "id": "ac-kyc-1",
+          "statement": "System verifies customer identity against a government-issued ID within 60 seconds and updates account status to VERIFIED.",
+          "actor_role": "compliance_officer"
+        },
+        {
+          "id": "ac-kyc-2",
+          "statement": "Account is immediately frozen and a compliance alert is raised when identity cannot be verified after two attempts.",
+          "actor_role": "compliance_officer"
+        }
+      ],
+      "functionality_id": "func-kyc",
+      "functionality_name": "KYC Verification",
+      "component_id": "comp-kyc",
+      "component_name": "KYCController"
+    },
+    {
+      "id": "req-money-transfer",
+      "title": "Money Transfer",
+      "priority": "P0",
+      "reg_control": null,
+      "acceptance_criteria": [
+        {
+          "id": "ac-mt-1",
+          "statement": "Customer can initiate a domestic transfer to any valid sort-code/account-number pair, confirmed by 4-digit PIN.",
+          "actor_role": "account_holder"
+        },
+        {
+          "id": "ac-mt-2",
+          "statement": "Transfer is rejected with error code INSUFFICIENT_FUNDS when the sender's available balance is less than the transfer amount plus fee.",
+          "actor_role": "account_holder"
+        }
+      ],
+      "functionality_id": "func-money-transfer",
+      "functionality_name": "Money Transfer",
+      "component_id": "comp-money-transfer",
+      "component_name": "TransferController"
+    },
+    {
+      "id": "req-transaction-history",
+      "title": "Transaction History",
+      "priority": "P1",
+      "reg_control": null,
+      "acceptance_criteria": [
+        {
+          "id": "ac-th-1",
+          "statement": "Customer can view a paginated list (20 per page) of all transactions for the last 90 days, ordered newest first.",
+          "actor_role": "account_holder"
+        },
+        {
+          "id": "ac-th-2",
+          "statement": "Customer can export the current transaction view to a CSV file containing date, description, amount, and running balance.",
+          "actor_role": "account_holder"
+        }
+      ],
+      "functionality_id": "func-transaction-history",
+      "functionality_name": "Transaction History",
+      "component_id": "comp-transaction-history",
+      "component_name": "TransactionHistoryController"
+    },
+    {
+      "id": "req-fraud-alerting",
+      "title": "Fraud Alerting",
+      "priority": "P1",
+      "reg_control": "PSD2-SCA",
+      "acceptance_criteria": [
+        {
+          "id": "ac-fa-1",
+          "statement": "System automatically flags any single transaction above £10,000 for manual compliance review within 5 seconds of posting.",
+          "actor_role": "compliance_officer"
+        },
+        {
+          "id": "ac-fa-2",
+          "statement": "Customer receives an SMS alert within 30 seconds for any transaction the fraud engine classifies as suspicious.",
+          "actor_role": "account_holder"
+        }
+      ],
+      "functionality_id": "func-fraud-alerting",
+      "functionality_name": "Fraud Detection & Alerting",
+      "component_id": "comp-fraud-alerting",
+      "component_name": "FraudDetectionEngine"
+    }
+  ]
+}

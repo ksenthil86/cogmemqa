@@ -1,6 +1,6 @@
 # Sprint v2 — Tasks: Bootstrap & Test Design (B3 + B4)
 
-## Status: In Progress (1/10 complete)
+## Status: In Progress (2/10 complete)
 
 ---
 
@@ -28,7 +28,7 @@
 
 ---
 
-- [ ] Task 2: ParsedSpec Pydantic models + Meridian banking fixture (P0)
+- [x] Task 2: ParsedSpec Pydantic models + Meridian banking fixture (P0)
   - Acceptance:
     - `src/agents/models.py` defines `ParsedActor`, `ParsedAC`, `ParsedRequirement`,
       `ParsedSpec` as Pydantic v2 models.
@@ -43,6 +43,11 @@
     - `src/agents/models.py` — `ParsedActor`, `ParsedAC`, `ParsedRequirement`, `ParsedSpec`
     - `fixtures/meridian_spec.md` — Meridian Bank PRD
     - `fixtures/meridian_parsed.json` — ground-truth JSON for `ParsedSpec`
+  - Completed: 2026-06-19 — ParsedActor/ParsedAC/ParsedRequirement/ParsedSpec in
+    src/agents/models.py; ProposedTest also defined here (needed by Task 7). Meridian
+    spec covers 5 banking requirements (Account Opening, KYC, Money Transfer, Transaction
+    History, Fraud Alerting), 10 ACs (2 each), 2 Actors, 5 Functionalities, 5 Components.
+    All IDs are deterministic slugs. 21 unit tests green; bandit clean; 108 total.
 
 ---
 
