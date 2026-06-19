@@ -1,6 +1,6 @@
 # Sprint v1 — Tasks: Memory Backbone (B1 + B2)
 
-## Status: In Progress (5/10 complete)
+## Status: In Progress (6/10 complete)
 
 ---
 
@@ -84,7 +84,7 @@
 
 ---
 
-- [ ] Task 6: RETRIEVE operation (P0)
+- [x] Task 6: RETRIEVE operation (P0)
   - Acceptance: `memory_api.retrieve(driver, agent_role, entity_id, depth=2)` returns a
     dict with `nodes` and `edges` lists scoped to the layers that role is allowed to see.
     Role `"functional_tester"` does not return Requirements layer nodes; role `"supervisor"`
@@ -95,6 +95,10 @@
       builds a parameterised Cypher using the policy and traversal depth
     - `tests/test_retrieve.py` — integration test: seed a 4-layer chain, assert
       supervisor gets all layers, functional_tester gets capability + implementation + evidence
+  - Completed: 2026-06-19 — Two-query approach: (1) variable-depth traverse filtered by
+    allowed labels using Cypher list comprehension; (2) edge collection between returned
+    node ids. 5 roles defined in retrieval_policies.py. Layer→label map loaded from
+    schema.yaml at import. 11 integration tests green; 53 total; bandit clean.
 
 ---
 
