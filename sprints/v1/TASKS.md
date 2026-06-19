@@ -1,6 +1,6 @@
 # Sprint v1 — Tasks: Memory Backbone (B1 + B2)
 
-## Status: In Progress (6/10 complete)
+## Status: In Progress (7/10 complete)
 
 ---
 
@@ -102,7 +102,7 @@
 
 ---
 
-- [ ] Task 7: RECONCILE operation (P1)
+- [x] Task 7: RECONCILE operation (P1)
   - Acceptance: `memory_api.reconcile(driver, entity_id, new_edge)` sets `valid_to=now()`
     on any existing edge of the same type to `entity_id` where `valid_to IS NULL`, then
     ingests the new edge. Historical edge is preserved with `valid_to` set (queryable).
@@ -111,6 +111,11 @@
     - `tests/test_reconcile.py` — integration test: add two REALIZED_BY edges from
       the same Requirement at different times; assert only the latest has `valid_to IS NULL`,
       old edge has `valid_to` set
+  - Completed: 2026-06-19 — Single Cypher: MATCH outgoing edges of the derived type
+    WHERE valid_to IS NULL, SET valid_to = datetime(); then ingest_edge for the new edge.
+    7 integration tests: expires old, activates new, preserves both in graph, valid_to >
+    valid_from, does not touch other edge types, handles no-prior-edge, chains two steps.
+    60 total tests green; bandit clean.
 
 ---
 

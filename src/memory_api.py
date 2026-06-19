@@ -224,6 +224,30 @@ def retrieve(
     return {"nodes": nodes, "edges": edges}
 
 
+# ─── RECONCILE ────────────────────────────────────────────────────────────────
+
+
+def reconcile(driver: Driver, entity_id: str, new_edge: BaseEdge) -> None:
+    """
+    Expire all active outgoing edges of the same type from *entity_id*, then
+    ingest *new_edge* as the current (active) replacement.
+
+    "Active" means valid_to IS NULL.  After this call:
+      - Every previously-active edge of that type FROM entity_id has valid_to
+        set to the current wall-clock time (the historical record is preserved).
+      - new_edge is ingested via ingest_edge (idempotent MERGE + ON CREATE SET).
+    """
+    edge_type = _edge_type_from_class(type(new_edge))
+    with driver.session() as session:
+        session.run(
+            f"MATCH ({{id: $eid}})-[r:{edge_type}]->() "
+            f"WHERE r.valid_to IS NULL "
+            f"SET r.valid_to = datetime()",
+            eid=entity_id,
+        )
+    ingest_edge(driver, new_edge)
+
+
 # ─── MemoryAPI facade (filled in Tasks 7-9) ────────────────────────────────────
 
 
