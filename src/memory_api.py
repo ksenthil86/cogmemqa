@@ -294,7 +294,47 @@ def write_provenance(
     return judgment.id
 
 
-# ─── MemoryAPI facade (filled in Tasks 7-9) ────────────────────────────────────
+# ─── AUDIT TRAIL ──────────────────────────────────────────────────────────────
+
+
+def audit_trail(driver: Driver, requirement_id: str) -> list[dict]:
+    """
+    Return the deterministic audit chain anchored at *requirement_id*.
+
+    Traverses the full provenance path in a single Cypher MATCH:
+
+      (Requirement) -[REALIZED_BY]->  (Functionality)
+                    -[COMPOSED_OF]->  (Component)
+                    -[IMPLEMENTED_BY]-> (File) <-[MODIFIES]- (Commit)
+      (Test)        -[VERIFIES]->     (Functionality)
+      (Judgment)    -[INFORMED_BY]->  (Requirement)
+
+    Each row in the result is a dict with keys:
+      requirement, functionality, component, file, test, judgment
+
+    Returns [] when *requirement_id* does not exist or no complete path exists.
+    """
+    with driver.session() as session:
+        rows = session.run(
+            "MATCH (r:Requirement {id: $req_id})"
+            "-[:REALIZED_BY]->(func:Functionality)"
+            "-[:COMPOSED_OF]->(comp:Component)"
+            "-[:IMPLEMENTED_BY]->(f:File)"
+            "<-[:MODIFIES]-(:Commit),"
+            " (t:Test)-[:VERIFIES]->(func),"
+            " (j:Judgment)-[:INFORMED_BY]->(r)"
+            " RETURN r.id    AS requirement,"
+            "        func.id AS functionality,"
+            "        comp.id AS component,"
+            "        f.id    AS file,"
+            "        t.id    AS test,"
+            "        j.id    AS judgment",
+            req_id=requirement_id,
+        ).data()
+    return rows
+
+
+# ─── MemoryAPI facade (Tasks 7-9 complete) ────────────────────────────────────
 
 
 class MemoryAPI:

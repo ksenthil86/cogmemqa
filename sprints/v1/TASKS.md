@@ -1,6 +1,6 @@
 # Sprint v1 — Tasks: Memory Backbone (B1 + B2)
 
-## Status: In Progress (8/10 complete)
+## Status: In Progress (9/10 complete)
 
 ---
 
@@ -138,7 +138,7 @@
 
 ---
 
-- [ ] Task 9: Deterministic audit-trail Cypher query (P1)
+- [x] Task 9: Deterministic audit-trail Cypher query (P1)
   - Acceptance: `memory_api.audit_trail(driver, requirement_id)` returns an ordered list of
     dicts with keys `requirement`, `functionality`, `component`, `file`, `test`, `judgment`
     for every complete path from the given Requirement down to a Judgment node. Returns empty
@@ -152,6 +152,12 @@
       (:Judgment)-[:INFORMED_BY]->(r)`
     - `tests/test_audit_trail.py` — integration test: assert the query returns the seeded
       chain; assert the function handles a requirement with no downstream path gracefully
+  - Completed: 2026-06-19 — Single Cypher MATCH across all 6 relationship types; .data()
+    maps each row to a dict with requirement/functionality/component/file/test/judgment keys.
+    Commit node acts as an evidence filter (File must have at least one MODIFIES edge).
+    7 integration tests: returns list, non-empty for full chain, required keys, correct
+    values, unknown req → [], incomplete chain → [], two Judgments → two rows.
+    76 total tests green; bandit clean.
 
 ---
 
