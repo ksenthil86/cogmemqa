@@ -1,10 +1,10 @@
 # Sprint v2 — Tasks: Bootstrap & Test Design (B3 + B4)
 
-## Status: Not Started (0/10 complete)
+## Status: In Progress (1/10 complete)
 
 ---
 
-- [ ] Task 1: LLM client singleton + BaseAgent scaffold (P0)
+- [x] Task 1: LLM client singleton + BaseAgent scaffold (P0)
   - Acceptance:
     - `google-generativeai>=0.8` added to `pyproject.toml` dev + runtime deps.
     - `src/llm.py` exposes `get_gemini_client()` (singleton, reads `GEMINI_API_KEY`
@@ -20,6 +20,11 @@
     - `src/agent_base.py` — `BaseAgent` class
     - `pyproject.toml` — add `google-generativeai>=0.8` to dependencies
     - `.env.example` — add `GEMINI_API_KEY`
+  - Completed: 2026-06-19 — Used google-genai>=1.0 (new SDK; google-generativeai is
+    deprecated as of 2025). get_gemini_client() is @lru_cache singleton raising ValueError
+    with no key. call_llm() wraps genai.Client.models.generate_content(). BaseAgent stores
+    role/driver/llm_fn; retrieve() and write_provenance() delegate to memory_api.
+    call_llm is the default llm_fn (injectable for testing). 10 tests green; bandit clean.
 
 ---
 
