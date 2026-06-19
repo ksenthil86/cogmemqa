@@ -1,6 +1,6 @@
 # Sprint v2 — Tasks: Bootstrap & Test Design (B3 + B4)
 
-## Status: In Progress (8/10 complete)
+## Status: In Progress (9/10 complete)
 
 ---
 
@@ -207,7 +207,7 @@
 
 ---
 
-- [ ] Task 9: Bandit scan + pyproject.toml deps lock (P0)
+- [x] Task 9: Bandit scan + pyproject.toml deps lock (P0)
   - Acceptance:
     - `python -m bandit -r src/ -q` exits 0 (no findings in new agent code).
     - `pyproject.toml` includes `google-generativeai>=0.8` under `[project.dependencies]`.
@@ -216,6 +216,9 @@
   - Files:
     - `pyproject.toml` — updated dependencies
     - `.env.example` — updated
+  - Completed: 2026-06-19 — All criteria already met. google-generativeai is EOL;
+    using google-genai>=1.0 (new SDK) set in Task 1. .env.example has GEMINI_API_KEY.
+    bandit exits 0. 161 tests green (well above 77+ baseline).
 
 ---
 
