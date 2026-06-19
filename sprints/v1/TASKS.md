@@ -1,6 +1,6 @@
 # Sprint v1 — Tasks: Memory Backbone (B1 + B2)
 
-## Status: In Progress (3/10 complete)
+## Status: In Progress (4/10 complete)
 
 ---
 
@@ -52,7 +52,7 @@
 
 ---
 
-- [ ] Task 4: Pydantic domain models for all node types (P0)
+- [x] Task 4: Pydantic domain models for all node types (P0)
   - Acceptance: Every node label in `schema.yaml` has a corresponding Pydantic v2
     `BaseModel` in `src/models.py`. `from src.models import Requirement, Test, Judgment`
     imports without error. Models validate `id` as non-empty string.
@@ -61,6 +61,10 @@
       edge models carry `valid_from: datetime`, `valid_to: datetime | None = None`
     - `tests/test_models.py` — 3 unit tests: valid model passes, missing required field
       raises ValidationError, edge model defaults valid_to to None
+  - Completed: 2026-06-19 — 19 node models + 11 edge models. BaseNode validates
+    non-empty id (including whitespace-only strings). BaseEdge carries valid_from/valid_to.
+    PytestCollectionWarning for Test/TestRun suppressed in pyproject.toml.
+    17 unit tests green; 32 total suite green; bandit clean.
 
 ---
 

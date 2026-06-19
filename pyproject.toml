@@ -28,6 +28,7 @@ include = ["src*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+filterwarnings = ["ignore::pytest.PytestCollectionWarning"]
 
 [tool.bandit]
 exclude_dirs = ["tests"]
