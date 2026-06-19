@@ -294,6 +294,28 @@ def write_provenance(
     return judgment.id
 
 
+# ─── COVERAGE GAPS ────────────────────────────────────────────────────────────
+
+
+def coverage_gaps(driver: Driver) -> list[dict]:
+    """
+    Return all AcceptanceCriterion nodes not yet covered by any Test.
+
+    A criterion is "covered" when a Test node points to it via a
+    COVERS_CRITERION edge.  Returns a list of dicts with keys:
+      ac_id     — the AcceptanceCriterion's id
+      statement — its statement text
+    Returns [] when every criterion has at least one covering Test.
+    """
+    with driver.session() as session:
+        rows = session.run(
+            "MATCH (ac:AcceptanceCriterion) "
+            "WHERE NOT (:Test)-[:COVERS_CRITERION]->(ac) "
+            "RETURN ac.id AS ac_id, ac.statement AS statement"
+        ).data()
+    return rows
+
+
 # ─── AUDIT TRAIL ──────────────────────────────────────────────────────────────
 
 

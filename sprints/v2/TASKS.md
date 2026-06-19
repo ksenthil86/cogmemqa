@@ -1,6 +1,6 @@
 # Sprint v2 — Tasks: Bootstrap & Test Design (B3 + B4)
 
-## Status: In Progress (5/10 complete)
+## Status: In Progress (6/10 complete)
 
 ---
 
@@ -122,7 +122,7 @@
 
 ---
 
-- [ ] Task 6: `coverage_gaps()` Cypher query in `src/memory_api.py` (P1)
+- [x] Task 6: `coverage_gaps()` Cypher query in `src/memory_api.py` (P1)
   - Acceptance:
     - `memory_api.coverage_gaps(driver) -> list[dict]` runs:
       ```cypher
@@ -141,7 +141,14 @@
         - Add to the second → returns `[]`.
   - Files:
     - `src/memory_api.py` — `coverage_gaps(driver) -> list[dict]`
-    - `tests/test_coverage_gap.py` — 3 integration tests
+    - `tests/test_coverage_gap.py` — 6 integration tests
+  - Completed: 2026-06-19 — Single-query Cypher: MATCH (ac:AcceptanceCriterion) WHERE
+    NOT (:Test)-[:COVERS_CRITERION]->(ac) RETURN ac.id AS ac_id, ac.statement AS
+    statement. Returns list[dict]. Tests use autouse fixture to DETACH DELETE the 4
+    test-specific nodes before each test (prevents state leakage across sessions from
+    the session-scoped neo4j_driver). Checks by ID membership, not total count, to
+    survive alongside Meridian ACs seeded by other test modules. 142 total tests
+    green; bandit clean.
 
 ---
 
