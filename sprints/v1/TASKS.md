@@ -1,6 +1,6 @@
 # Sprint v1 — Tasks: Memory Backbone (B1 + B2)
 
-## Status: In Progress (2/10 complete)
+## Status: In Progress (3/10 complete)
 
 ---
 
@@ -37,7 +37,7 @@
 
 ---
 
-- [ ] Task 3: Neo4j schema provisioner (P0)
+- [x] Task 3: Neo4j schema provisioner (P0)
   - Acceptance: Running `python scripts/provision_schema.py` on an empty Neo4j instance
     creates all uniqueness constraints and lookup indexes declared in `schema.yaml`.
     Re-running is idempotent (no errors on second run).
@@ -45,6 +45,10 @@
     - `scripts/provision_schema.py` — reads `schema/schema.yaml`; for each node with
       `unique_key`, issues `CREATE CONSTRAINT IF NOT EXISTS`; for each node property
       marked `index: true`, issues `CREATE INDEX IF NOT EXISTS`
+  - Completed: 2026-06-19 — 19 UNIQUENESS constraints + 7 RANGE indexes applied.
+    Logic extracted to src/provisioner.py (importable by e2e test). _safe() guard
+    validates label/property names before Cypher embedding. 3 integration tests green;
+    idempotency confirmed (identical output on second run); bandit clean.
 
 ---
 
