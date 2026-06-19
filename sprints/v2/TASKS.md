@@ -1,6 +1,6 @@
 # Sprint v2 — Tasks: Bootstrap & Test Design (B3 + B4)
 
-## Status: In Progress (7/10 complete)
+## Status: In Progress (8/10 complete)
 
 ---
 
@@ -178,7 +178,7 @@
 
 ---
 
-- [ ] Task 8: B4 — `ingest_tests()`: Test nodes + edges + provenance (P1)
+- [x] Task 8: B4 — `ingest_tests()`: Test nodes + edges + provenance (P1)
   - Acceptance:
     - `agent.ingest_tests(driver, proposed: list[ProposedTest]) -> list[str]`
       (returns Test node ids).
@@ -198,6 +198,12 @@
   - Files:
     - `src/agents/test_case_generator.py` — `ingest_tests()` + `run()` method
     - `tests/test_test_case_generator.py` — integration tests added
+  - Completed: 2026-06-19 — ingest_tests(): Test node id = ac_id+"-test";
+    COVERS_CRITERION (Test→AC) + VERIFIES (Test→Func) edges; Judgment(label=
+    "TEST_PROPOSED") + ReasoningTrace + INFORMED_BY→AC per proposed test.
+    run(): coverage_gaps → propose_tests → ingest_tests. 7 integration tests:
+    return ids, Test nodes, COVERS/VERIFIES edges, coverage_gaps closes,
+    Judgment count, run() e2e gap closure. 161 total tests green; bandit clean.
 
 ---
 

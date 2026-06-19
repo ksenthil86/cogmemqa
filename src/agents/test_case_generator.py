@@ -8,13 +8,22 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from neo4j import Driver
 
 from src.agent_base import BaseAgent
 from src.agents.models import ProposedTest
+from src import memory_api
 from src.llm import call_llm
+from src.models import (
+    Test,
+    Judgment,
+    ReasoningTrace,
+    CoversCriterionEdge,
+    VerifiesEdge,
+)
 
 log = logging.getLogger(__name__)
 
@@ -88,3 +97,52 @@ class TestCaseGeneratorAgent(BaseAgent):
                     raw[:200],
                 )
         return results
+
+    def ingest_tests(self, driver: Driver, proposed: list[ProposedTest]) -> list[str]:
+        """
+        For each ProposedTest ingest a Test node + COVERS_CRITERION + VERIFIES edges
+        and write a Judgment(label="TEST_PROPOSED") provenance record.
+
+        Test node id = proposed.ac_id + "-test" (deterministic, idempotent).
+        Returns the list of ingested Test node ids.
+        """
+        test_ids: list[str] = []
+        for pt in proposed:
+            test_id = f"{pt.ac_id}-test"
+            now = datetime.now(timezone.utc)
+
+            memory_api.ingest_node(driver, Test(id=test_id, name=pt.name, type=pt.type))
+            memory_api.ingest_edge(
+                driver,
+                CoversCriterionEdge(from_id=test_id, to_id=pt.ac_id, valid_from=now),
+            )
+            memory_api.ingest_edge(
+                driver,
+                VerifiesEdge(from_id=test_id, to_id=pt.verifies_functionality_id, valid_from=now),
+            )
+
+            judgment = Judgment(
+                id=f"judgment-test-proposed-{pt.ac_id}",
+                agent_role=self.role,
+                label="TEST_PROPOSED",
+            )
+            trace = ReasoningTrace(
+                id=f"trace-test-proposed-{pt.ac_id}",
+                agent_role=self.role,
+                decision=pt.name,
+                timestamp=now,
+            )
+            self.write_provenance(judgment, [trace], [pt.ac_id])
+            test_ids.append(test_id)
+
+        return test_ids
+
+    def run(self, driver: Driver) -> list[str]:
+        """
+        Full B4 pipeline: coverage_gaps → propose_tests → ingest_tests.
+
+        Returns the list of ingested Test node ids.
+        """
+        gaps = memory_api.coverage_gaps(driver)
+        proposed = self.propose_tests(gaps)
+        return self.ingest_tests(driver, proposed)
