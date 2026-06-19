@@ -9,11 +9,23 @@ from __future__ import annotations
 import re
 from typing import Callable, Optional
 
+from datetime import datetime, timezone
+
 from neo4j import Driver
 
 from src.agent_base import BaseAgent
 from src.agents.models import ParsedSpec
+from src import memory_api
 from src.llm import call_llm
+from src.models import (
+    Requirement,
+    AcceptanceCriterion,
+    Actor,
+    Functionality,
+    Component,
+    RealizedByEdge,
+    ComposedOfEdge,
+)
 
 _PARSE_SPEC_PROMPT = """\
 You are a requirements analyst.  Read the product specification below and extract
@@ -96,3 +108,48 @@ class RequirementsParserAgent(BaseAgent):
                 f"parse_spec: LLM returned output that could not be parsed as ParsedSpec. "
                 f"Error: {exc!s}. Raw (first 200 chars): {raw[:200]!r}"
             ) from exc
+
+    def seed_graph(self, driver: Driver, parsed: ParsedSpec) -> list[str]:
+        """
+        Ingest a ParsedSpec into the graph.
+
+        For each ParsedRequirement:  Requirement, Functionality, Component nodes
+        + REALIZED_BY (Req → Func) and COMPOSED_OF (Func → Comp) edges.
+        For each ParsedAC:           AcceptanceCriterion node.
+        For each ParsedActor:        Actor node.
+
+        Idempotent — safe to call multiple times with the same ParsedSpec.
+        Returns the list of requirement ids that were ingested.
+        """
+        for actor in parsed.actors:
+            memory_api.ingest_node(driver, Actor(id=actor.id, name=actor.name, role=actor.role))
+
+        req_ids: list[str] = []
+        for req in parsed.requirements:
+            memory_api.ingest_node(driver, Functionality(
+                id=req.functionality_id,
+                name=req.functionality_name,
+            ))
+            memory_api.ingest_node(driver, Component(
+                id=req.component_id,
+                name=req.component_name,
+            ))
+            memory_api.ingest_node(driver, Requirement(
+                id=req.id,
+                title=req.title,
+                priority=req.priority,
+                reg_control=req.reg_control,
+            ))
+            now = datetime.now(timezone.utc)
+            memory_api.ingest_edge(driver, RealizedByEdge(from_id=req.id, to_id=req.functionality_id, valid_from=now))
+            memory_api.ingest_edge(driver, ComposedOfEdge(from_id=req.functionality_id, to_id=req.component_id, valid_from=now))
+
+            for ac in req.acceptance_criteria:
+                memory_api.ingest_node(driver, AcceptanceCriterion(
+                    id=ac.id,
+                    statement=ac.statement,
+                ))
+
+            req_ids.append(req.id)
+
+        return req_ids

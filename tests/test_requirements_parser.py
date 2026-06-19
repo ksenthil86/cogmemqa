@@ -1,14 +1,19 @@
 """
-Unit tests for RequirementsParserAgent.parse_spec() (Task 3).
-No Neo4j, no live LLM — stub llm_fn used throughout.
+Unit and integration tests for RequirementsParserAgent (Tasks 3 & 4).
+
+Unit tests (Tasks 3): no Neo4j, no live LLM.
+Integration tests (Task 4): use neo4j_driver fixture, still no live LLM.
 """
 import json
 from pathlib import Path
 
 import pytest
 
+from src.agents.models import ParsedSpec
+
 MERIDIAN_JSON = Path(__file__).parent.parent / "fixtures" / "meridian_parsed.json"
-MERIDIAN_RAW = MERIDIAN_JSON.read_text()
+MERIDIAN_RAW  = MERIDIAN_JSON.read_text()
+MERIDIAN_SPEC = ParsedSpec.model_validate_json(MERIDIAN_RAW)
 
 
 def _make_agent(llm_fn):
@@ -130,3 +135,132 @@ def test_parse_spec_prompt_mentions_actors_and_requirements():
     assert "actors" in prompt or "requirements" in prompt, (
         "Prompt must reference the ParsedSpec schema fields"
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Integration tests: seed_graph() (Task 4)
+# Uses neo4j_driver fixture — no live LLM.
+# Meridian fixture uses fixed slug IDs so counts are measured by id membership.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _count_nodes(driver, label: str, ids: list[str]) -> int:
+    with driver.session() as session:
+        return session.run(
+            f"MATCH (n:{label}) WHERE n.id IN $ids RETURN count(n) AS cnt",
+            ids=ids,
+        ).single()["cnt"]
+
+
+def _edge_exists(driver, from_id: str, to_id: str, rel_type: str) -> bool:
+    with driver.session() as session:
+        cnt = session.run(
+            f"MATCH (a {{id: $fid}})-[r:{rel_type}]->(b {{id: $tid}}) "
+            "RETURN count(r) AS cnt",
+            fid=from_id, tid=to_id,
+        ).single()["cnt"]
+        return cnt > 0
+
+
+def _make_seeding_agent(driver):
+    from src.agents.requirements_parser import RequirementsParserAgent
+    return RequirementsParserAgent(
+        role="requirements_parser",
+        driver=driver,
+        llm_fn=lambda p: MERIDIAN_RAW,
+    )
+
+
+# ── Test: seed_graph returns requirement ids ───────────────────────────────────
+
+def test_seed_graph_returns_list_of_requirement_ids(neo4j_driver):
+    agent = _make_seeding_agent(neo4j_driver)
+    result = agent.seed_graph(neo4j_driver, MERIDIAN_SPEC)
+    assert isinstance(result, list)
+    expected_ids = {r.id for r in MERIDIAN_SPEC.requirements}
+    assert set(result) == expected_ids
+
+
+# ── Test: node counts after seeding ───────────────────────────────────────────
+
+def test_seed_graph_ingests_five_requirement_nodes(neo4j_driver):
+    agent = _make_seeding_agent(neo4j_driver)
+    agent.seed_graph(neo4j_driver, MERIDIAN_SPEC)
+    req_ids = [r.id for r in MERIDIAN_SPEC.requirements]
+    assert _count_nodes(neo4j_driver, "Requirement", req_ids) == 5
+
+
+def test_seed_graph_ingests_five_functionality_nodes(neo4j_driver):
+    agent = _make_seeding_agent(neo4j_driver)
+    agent.seed_graph(neo4j_driver, MERIDIAN_SPEC)
+    func_ids = [r.functionality_id for r in MERIDIAN_SPEC.requirements]
+    assert _count_nodes(neo4j_driver, "Functionality", func_ids) == 5
+
+
+def test_seed_graph_ingests_five_component_nodes(neo4j_driver):
+    agent = _make_seeding_agent(neo4j_driver)
+    agent.seed_graph(neo4j_driver, MERIDIAN_SPEC)
+    comp_ids = [r.component_id for r in MERIDIAN_SPEC.requirements]
+    assert _count_nodes(neo4j_driver, "Component", comp_ids) == 5
+
+
+def test_seed_graph_ingests_ten_acceptance_criterion_nodes(neo4j_driver):
+    agent = _make_seeding_agent(neo4j_driver)
+    agent.seed_graph(neo4j_driver, MERIDIAN_SPEC)
+    ac_ids = [ac.id for r in MERIDIAN_SPEC.requirements for ac in r.acceptance_criteria]
+    assert _count_nodes(neo4j_driver, "AcceptanceCriterion", ac_ids) == 10
+
+
+def test_seed_graph_ingests_two_actor_nodes(neo4j_driver):
+    agent = _make_seeding_agent(neo4j_driver)
+    agent.seed_graph(neo4j_driver, MERIDIAN_SPEC)
+    actor_ids = [a.id for a in MERIDIAN_SPEC.actors]
+    assert _count_nodes(neo4j_driver, "Actor", actor_ids) == 2
+
+
+# ── Test: edges after seeding ─────────────────────────────────────────────────
+
+def test_seed_graph_creates_realized_by_edges(neo4j_driver):
+    agent = _make_seeding_agent(neo4j_driver)
+    agent.seed_graph(neo4j_driver, MERIDIAN_SPEC)
+    for req in MERIDIAN_SPEC.requirements:
+        assert _edge_exists(neo4j_driver, req.id, req.functionality_id, "REALIZED_BY"), (
+            f"Missing REALIZED_BY edge: {req.id} → {req.functionality_id}"
+        )
+
+
+def test_seed_graph_creates_composed_of_edges(neo4j_driver):
+    agent = _make_seeding_agent(neo4j_driver)
+    agent.seed_graph(neo4j_driver, MERIDIAN_SPEC)
+    for req in MERIDIAN_SPEC.requirements:
+        assert _edge_exists(neo4j_driver, req.functionality_id, req.component_id, "COMPOSED_OF"), (
+            f"Missing COMPOSED_OF edge: {req.functionality_id} → {req.component_id}"
+        )
+
+
+# ── Test: idempotency ─────────────────────────────────────────────────────────
+
+def test_seed_graph_is_idempotent_requirement_nodes(neo4j_driver):
+    """Calling seed_graph twice must not duplicate Requirement nodes."""
+    agent = _make_seeding_agent(neo4j_driver)
+    req_ids = [r.id for r in MERIDIAN_SPEC.requirements]
+
+    agent.seed_graph(neo4j_driver, MERIDIAN_SPEC)
+    agent.seed_graph(neo4j_driver, MERIDIAN_SPEC)
+
+    assert _count_nodes(neo4j_driver, "Requirement", req_ids) == 5
+
+
+def test_seed_graph_is_idempotent_edges(neo4j_driver):
+    """Calling seed_graph twice must not duplicate REALIZED_BY edges."""
+    agent = _make_seeding_agent(neo4j_driver)
+    req = MERIDIAN_SPEC.requirements[0]
+
+    agent.seed_graph(neo4j_driver, MERIDIAN_SPEC)
+    agent.seed_graph(neo4j_driver, MERIDIAN_SPEC)
+
+    with neo4j_driver.session() as session:
+        cnt = session.run(
+            "MATCH (a {id: $fid})-[r:REALIZED_BY]->(b {id: $tid}) RETURN count(r) AS cnt",
+            fid=req.id, tid=req.functionality_id,
+        ).single()["cnt"]
+    assert cnt == 1, "REALIZED_BY edge must not be duplicated by a second seed_graph call"

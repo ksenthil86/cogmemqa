@@ -1,6 +1,6 @@
 # Sprint v2 — Tasks: Bootstrap & Test Design (B3 + B4)
 
-## Status: In Progress (3/10 complete)
+## Status: In Progress (4/10 complete)
 
 ---
 
@@ -73,7 +73,7 @@
 
 ---
 
-- [ ] Task 4: B3 — `seed_graph()`: ingest requirements + capability skeleton (P0)
+- [x] Task 4: B3 — `seed_graph()`: ingest requirements + capability skeleton (P0)
   - Acceptance:
     - `agent.seed_graph(driver, parsed: ParsedSpec) -> list[str]` (returns requirement ids)
       ingests for each `ParsedRequirement`:
@@ -91,6 +91,11 @@
   - Files:
     - `src/agents/requirements_parser.py` — `RequirementsParserAgent.seed_graph()`
     - `tests/test_requirements_parser.py` — integration tests added
+  - Completed: 2026-06-19 — seed_graph() iterates ParsedActor → Actor nodes, then per
+    ParsedRequirement: Functionality + Component + Requirement nodes, REALIZED_BY and
+    COMPOSED_OF edges (with datetime.now(utc) valid_from), then AcceptanceCriterion
+    nodes per AC. All 10 integration tests green (node counts, edge existence,
+    idempotency). 130 total tests green; bandit clean.
 
 ---
 
