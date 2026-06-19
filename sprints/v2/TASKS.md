@@ -1,6 +1,6 @@
 # Sprint v2 — Tasks: Bootstrap & Test Design (B3 + B4)
 
-## Status: In Progress (6/10 complete)
+## Status: In Progress (7/10 complete)
 
 ---
 
@@ -152,7 +152,7 @@
 
 ---
 
-- [ ] Task 7: B4 — `propose_tests()`: LLM prompt per gap → ProposedTest models (P1)
+- [x] Task 7: B4 — `propose_tests()`: LLM prompt per gap → ProposedTest models (P1)
   - Acceptance:
     - `src/agents/models.py` adds `ProposedTest(BaseModel)` with fields:
         `ac_id: str`, `name: str`, `type: Literal["api", "ui", "unit"]`,
@@ -166,9 +166,15 @@
         - Stub returns valid JSON → list of `ProposedTest` objects returned.
         - Stub returns malformed JSON for one gap → that gap skipped, others processed.
   - Files:
-    - `src/agents/models.py` — add `ProposedTest`
+    - `src/agents/models.py` — add `ProposedTest` (was already defined in Task 2)
     - `src/agents/test_case_generator.py` — `TestCaseGeneratorAgent.propose_tests()`
     - `tests/test_test_case_generator.py` — unit tests (stub `llm_fn`, no Neo4j)
+  - Completed: 2026-06-19 — TestCaseGeneratorAgent(BaseAgent) with propose_tests():
+    one LLM call per gap, prompt embeds ac_id + statement, asks for JSON ProposedTest.
+    _strip_fences() strips markdown code fences. Malformed JSON → log.warning + skip,
+    processing continues. 12 unit tests: import, inheritance, valid/empty/malformed
+    responses, prompt content checks, fence stripping, one-call-per-gap. 154 total
+    tests green; bandit clean.
 
 ---
 
