@@ -1,6 +1,6 @@
 # Sprint v2 — Tasks: Bootstrap & Test Design (B3 + B4)
 
-## Status: In Progress (4/10 complete)
+## Status: In Progress (5/10 complete)
 
 ---
 
@@ -99,7 +99,7 @@
 
 ---
 
-- [ ] Task 5: B3 — provenance write after seed + `run()` orchestrator (P0)
+- [x] Task 5: B3 — provenance write after seed + `run()` orchestrator (P0)
   - Acceptance:
     - After `seed_graph`, the agent calls `write_provenance` with:
         - A `Judgment(agent_role="requirements_parser", label="SEEDED")` node.
@@ -113,6 +113,12 @@
   - Files:
     - `src/agents/requirements_parser.py` — provenance + `run()` method
     - `tests/test_requirements_parser.py` — provenance integration test added
+  - Completed: 2026-06-19 — run() hashes spec_text (SHA-256 first 12 chars) to build
+    deterministic judgment_id and trace_id; Judgment(label="SEEDED"), ReasoningTrace
+    (decision="Seeded N requirements..."), INFORMED_BY edges to all 5 req ids.
+    Idempotent: same spec → same hash → same MERGE node. 6 new integration tests green
+    (return type, Judgment node, HAS_STEP→ReasoningTrace, INFORMED_BY×5, graph seeds,
+    idempotency). 136 total tests green; bandit clean.
 
 ---
 

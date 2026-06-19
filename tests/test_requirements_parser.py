@@ -264,3 +264,98 @@ def test_seed_graph_is_idempotent_edges(neo4j_driver):
             fid=req.id, tid=req.functionality_id,
         ).single()["cnt"]
     assert cnt == 1, "REALIZED_BY edge must not be duplicated by a second seed_graph call"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Integration tests: run() + provenance (Task 5)
+# Uses neo4j_driver fixture — no live LLM.
+# ══════════════════════════════════════════════════════════════════════════════
+
+MERIDIAN_SPEC_TEXT = (
+    Path(__file__).parent.parent / "fixtures" / "meridian_spec.md"
+).read_text()
+
+
+def _make_run_agent(driver):
+    from src.agents.requirements_parser import RequirementsParserAgent
+    return RequirementsParserAgent(
+        role="requirements_parser",
+        driver=driver,
+        llm_fn=lambda p: MERIDIAN_RAW,
+    )
+
+
+# ── Test: run() returns a judgment id string ───────────────────────────────────
+
+def test_run_returns_string_judgment_id(neo4j_driver):
+    agent = _make_run_agent(neo4j_driver)
+    result = agent.run(MERIDIAN_SPEC_TEXT)
+    assert isinstance(result, str) and result.strip(), "run() must return a non-empty judgment id"
+
+
+# ── Test: Judgment node with label SEEDED exists after run() ──────────────────
+
+def test_run_creates_seeded_judgment_node(neo4j_driver):
+    agent = _make_run_agent(neo4j_driver)
+    judgment_id = agent.run(MERIDIAN_SPEC_TEXT)
+    with neo4j_driver.session() as session:
+        row = session.run(
+            "MATCH (j:Judgment {id: $jid}) RETURN j.label AS label",
+            jid=judgment_id,
+        ).single()
+    assert row is not None, f"No Judgment node found with id={judgment_id!r}"
+    assert row["label"] == "SEEDED"
+
+
+# ── Test: ReasoningTrace node linked to Judgment ─────────────────────────────
+
+def test_run_creates_reasoning_trace_linked_to_judgment(neo4j_driver):
+    agent = _make_run_agent(neo4j_driver)
+    judgment_id = agent.run(MERIDIAN_SPEC_TEXT)
+    with neo4j_driver.session() as session:
+        cnt = session.run(
+            "MATCH (j:Judgment {id: $jid})-[:HAS_STEP]->(t:ReasoningTrace) RETURN count(t) AS cnt",
+            jid=judgment_id,
+        ).single()["cnt"]
+    assert cnt >= 1, "Judgment must have at least one HAS_STEP → ReasoningTrace edge"
+
+
+# ── Test: Judgment has INFORMED_BY edges to requirement nodes ─────────────────
+
+def test_run_judgment_has_informed_by_edges_to_requirements(neo4j_driver):
+    agent = _make_run_agent(neo4j_driver)
+    judgment_id = agent.run(MERIDIAN_SPEC_TEXT)
+    req_ids = [r.id for r in MERIDIAN_SPEC.requirements]
+    with neo4j_driver.session() as session:
+        cnt = session.run(
+            "MATCH (j:Judgment {id: $jid})-[:INFORMED_BY]->(r:Requirement) "
+            "WHERE r.id IN $req_ids RETURN count(r) AS cnt",
+            jid=judgment_id,
+            req_ids=req_ids,
+        ).single()["cnt"]
+    assert cnt == 5, f"Expected 5 INFORMED_BY → Requirement edges, got {cnt}"
+
+
+# ── Test: run() also seeds the graph (requirements exist) ────────────────────
+
+def test_run_seeds_graph_requirements(neo4j_driver):
+    agent = _make_run_agent(neo4j_driver)
+    agent.run(MERIDIAN_SPEC_TEXT)
+    req_ids = [r.id for r in MERIDIAN_SPEC.requirements]
+    assert _count_nodes(neo4j_driver, "Requirement", req_ids) == 5
+
+
+# ── Test: run() is idempotent — calling twice still yields exactly 1 Judgment ─
+
+def test_run_is_idempotent_single_judgment(neo4j_driver):
+    """run() called twice with same spec must not duplicate the Judgment node."""
+    agent = _make_run_agent(neo4j_driver)
+    jid1 = agent.run(MERIDIAN_SPEC_TEXT)
+    jid2 = agent.run(MERIDIAN_SPEC_TEXT)
+    assert jid1 == jid2, "run() must return the same Judgment id on repeated calls with the same spec"
+    with neo4j_driver.session() as session:
+        cnt = session.run(
+            "MATCH (j:Judgment {id: $jid}) RETURN count(j) AS cnt",
+            jid=jid1,
+        ).single()["cnt"]
+    assert cnt == 1, "Judgment node must not be duplicated by a second run() call"

@@ -6,6 +6,7 @@ capability layers via the shared memory API.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from typing import Callable, Optional
 
@@ -23,6 +24,8 @@ from src.models import (
     Actor,
     Functionality,
     Component,
+    Judgment,
+    ReasoningTrace,
     RealizedByEdge,
     ComposedOfEdge,
 )
@@ -153,3 +156,32 @@ class RequirementsParserAgent(BaseAgent):
             req_ids.append(req.id)
 
         return req_ids
+
+    def run(self, spec_text: str) -> str:
+        """
+        Full B3 pipeline: parse_spec → seed_graph → write_provenance.
+
+        Uses a SHA-256 hash of the spec text to build a deterministic judgment
+        id so that calling run() twice with the same spec is idempotent.
+        Returns the Judgment node's id.
+        """
+        parsed = self.parse_spec(spec_text)
+        req_ids = self.seed_graph(self.driver, parsed)
+
+        spec_hash = hashlib.sha256(spec_text.encode()).hexdigest()[:12]
+        judgment_id = f"judgment-requirements-parser-{spec_hash}"
+        trace_id = f"trace-requirements-parser-{spec_hash}"
+        now = datetime.now(timezone.utc)
+
+        judgment = Judgment(
+            id=judgment_id,
+            agent_role=self.role,
+            label="SEEDED",
+        )
+        trace = ReasoningTrace(
+            id=trace_id,
+            agent_role=self.role,
+            decision=f"Seeded {len(req_ids)} requirements into the graph.",
+            timestamp=now,
+        )
+        return self.write_provenance(judgment, [trace], req_ids)
