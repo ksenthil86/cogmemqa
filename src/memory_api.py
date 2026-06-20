@@ -316,6 +316,112 @@ def coverage_gaps(driver: Driver) -> list[dict]:
     return rows
 
 
+# ─── COVERAGE SUMMARY ────────────────────────────────────────────────────────
+
+
+def coverage_summary(driver: Driver) -> dict:
+    """
+    Return aggregate test-execution coverage metrics.
+
+    "Covered" means the AcceptanceCriterion has at least one TestRun with
+    outcome="pass" reachable via:
+      (TestRun)-[:INSTANCE_OF]->(Test)-[:COVERS_CRITERION]->(AcceptanceCriterion)
+
+    A failing TestRun does NOT count.
+
+    Returns a dict with keys:
+      total_ac     — total AcceptanceCriterion nodes in the graph
+      covered_ac   — ACs with ≥1 passing TestRun
+      coverage_pct — covered_ac / total_ac * 100, or 0.0 when total_ac == 0
+    """
+    with driver.session() as session:
+        row = session.run(
+            "MATCH (ac:AcceptanceCriterion) "
+            "OPTIONAL MATCH (tr:TestRun {outcome: 'pass'})-[:INSTANCE_OF]->(t:Test) "
+            "              -[:COVERS_CRITERION]->(ac) "
+            "RETURN "
+            "  count(DISTINCT ac)                                          AS total_ac, "
+            "  count(DISTINCT CASE WHEN tr IS NOT NULL THEN ac END)        AS covered_ac"
+        ).single()
+
+    total   = row["total_ac"]
+    covered = row["covered_ac"]
+    pct     = (covered / total * 100.0) if total > 0 else 0.0
+    return {"total_ac": total, "covered_ac": covered, "coverage_pct": pct}
+
+
+# ─── SECURITY SUMMARY ─────────────────────────────────────────────────────────
+
+
+def security_summary(driver: Driver) -> dict:
+    """
+    Return aggregate open-security-finding metrics.
+
+    Only SecurityFinding nodes with status="open" are counted.
+    Closed findings are excluded.
+
+    Returns a dict with keys:
+      total_open   — total open SecurityFinding nodes
+      by_severity  — {"low": L, "medium": M, "high": H}
+                     all three keys are always present; missing severities = 0
+    """
+    with driver.session() as session:
+        rows = session.run(
+            "MATCH (sf:SecurityFinding {status: 'open'}) "
+            "RETURN sf.severity AS sev, count(sf) AS cnt"
+        ).data()
+
+    by_severity: dict[str, int] = {"low": 0, "medium": 0, "high": 0}
+    for row in rows:
+        sev = (row["sev"] or "").lower()
+        if sev in by_severity:
+            by_severity[sev] = row["cnt"]
+
+    total_open = sum(by_severity.values())
+    return {"total_open": total_open, "by_severity": by_severity}
+
+
+# ─── IMPACT LOOKUP ────────────────────────────────────────────────────────────
+
+
+def impact_lookup(driver: Driver, file_paths: list[str]) -> list[dict]:
+    """
+    Given a list of changed file paths, return the upstream impact chain for
+    each path that has a Component -[IMPLEMENTED_BY]-> File link in the graph.
+
+    Traverses upward:
+      (File) <-[IMPLEMENTED_BY]- (Component)
+             <-[COMPOSED_OF]-   (Functionality)
+             <-[REALIZED_BY]-   (Requirement)
+
+    Returns a list of dicts, one per matched (file_path, component) pair:
+      {
+        "file_path":       str,
+        "component_id":    str,
+        "functionality_id": str,
+        "requirement_id":  str,
+      }
+
+    Paths with no IMPLEMENTED_BY edge are silently skipped (result is []).
+    Uses DISTINCT to avoid duplicate rows.
+    """
+    with driver.session() as session:
+        rows = session.run(
+            "UNWIND $paths AS path "
+            "MATCH (f:File {path: path}) "
+            "MATCH (comp:Component)-[:IMPLEMENTED_BY]->(f) "
+            "MATCH (func:Functionality)-[:COMPOSED_OF]->(comp) "
+            "MATCH (req:Requirement)-[:REALIZED_BY]->(func) "
+            "RETURN DISTINCT "
+            "  f.path    AS file_path, "
+            "  comp.id   AS component_id, "
+            "  func.id   AS functionality_id, "
+            "  req.id    AS requirement_id",
+            paths=file_paths,
+        ).data()
+    return rows
+
+
 # ─── AUDIT TRAIL ──────────────────────────────────────────────────────────────
 
 

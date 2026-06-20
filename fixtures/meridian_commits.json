@@ -1,0 +1,47 @@
+[
+  {
+    "sha": "b800001",
+    "message": "Add input validation for account registration fields",
+    "author": "dev@meridian.io",
+    "timestamp": "2026-01-15T09:00:00Z",
+    "files": [
+      {"path": "src/account/AccountController.java", "change_type": "modified"}
+    ]
+  },
+  {
+    "sha": "b800002",
+    "message": "Enhance KYC identity verification timeout handling",
+    "author": "dev@meridian.io",
+    "timestamp": "2026-01-16T10:30:00Z",
+    "files": [
+      {"path": "src/kyc/KycService.java", "change_type": "modified"}
+    ]
+  },
+  {
+    "sha": "b800003",
+    "message": "Fix transfer limit enforcement for cross-border payments",
+    "author": "dev@meridian.io",
+    "timestamp": "2026-01-17T14:00:00Z",
+    "files": [
+      {"path": "src/transfers/TransferEngine.java", "change_type": "modified"}
+    ]
+  },
+  {
+    "sha": "b800004",
+    "message": "Optimise transaction history pagination for large accounts",
+    "author": "dev@meridian.io",
+    "timestamp": "2026-01-18T11:15:00Z",
+    "files": [
+      {"path": "src/history/TransactionRepository.java", "change_type": "modified"}
+    ]
+  },
+  {
+    "sha": "b800005",
+    "message": "Improve fraud pattern detection scoring algorithm",
+    "author": "dev@meridian.io",
+    "timestamp": "2026-01-19T16:45:00Z",
+    "files": [
+      {"path": "src/fraud/FraudDetector.java", "change_type": "modified"}
+    ]
+  }
+]

@@ -160,6 +160,9 @@ class SecurityFinding(BaseNode):
 class Report(BaseNode):
     summary: str
     created_at: datetime
+    coverage_pct: float = 0.0
+    open_findings_count: int = 0
+    severity_breakdown: str = "{}"
 
 
 # ─── Edge models ───────────────────────────────────────────────────────────────
