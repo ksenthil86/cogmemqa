@@ -146,7 +146,8 @@
 
 ---
 
-- [ ] Task 8: `HealthPanel` component (P0)
+- [x] Task 8: `HealthPanel` component (P0)
+  - Completed: 2026-06-21 — HealthPanel.tsx: 4 metric cards (Coverage/Findings/Reports/Status), skeleton loading, 30s setInterval refresh, HEALTHY/NEEDS REVIEW logic; /health-test page for isolated testing; 16/16 E2E tests green; npm audit 0; build exits 0
   - Acceptance:
     - `frontend/components/HealthPanel.tsx` fetches `GET /api/health` on mount.
     - Renders four metric cards:
