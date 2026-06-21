@@ -109,7 +109,8 @@
 
 ---
 
-- [ ] Task 6: `GraphCanvas` NVL component (P0)
+- [x] Task 6: `GraphCanvas` NVL component (P0)
+  - Completed: 2026-06-21 — GraphCanvas.tsx with InteractiveNvlWrapper; node colours by layer; caption from properties.id; onNodeClick prop; loading/error states; dynamic import ssr:false in page.tsx (NVL uses document at module load); 5 Playwright E2E tests green; npm audit 0 vulnerabilities; build exits 0
   - Acceptance:
     - `frontend/components/GraphCanvas.tsx` renders an NVL `InteractiveNvlWrapper`
       (or `NvlWrapper`) fed with nodes and relationships fetched from
