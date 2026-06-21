@@ -1,10 +1,11 @@
 # Sprint v6 — Tasks: CoGMEM-Inspector (B10)
 
-## Status: Not Started (0/10)
+## Status: In Progress (1/10)
 
 ---
 
-- [ ] Task 1: FastAPI backend scaffold + health + schema endpoints (P0)
+- [x] Task 1: FastAPI backend scaffold + health + schema endpoints (P0)
+  - Completed: 2026-06-21 — src/api.py with /api/health + /api/schema + all 5 endpoints stubbed; 11 tests green; 309/309 suite; bandit clean; uvicorn added to pyproject.toml
   - Acceptance:
     - `src/api.py` defines a FastAPI `app`.
     - `GET /api/health` returns JSON with keys `coverage_pct`, `covered_ac`,
