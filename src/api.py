@@ -54,12 +54,29 @@ app.add_middleware(
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _sanitize(value: Any) -> Any:
+    """Recursively convert neo4j temporal types to ISO strings."""
+    try:
+        from neo4j.time import DateTime, Date, Time, Duration
+        if isinstance(value, (DateTime, Date, Time)):
+            return value.iso_format()
+        if isinstance(value, Duration):
+            return str(value)
+    except ImportError:
+        pass
+    if isinstance(value, dict):
+        return {k: _sanitize(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_sanitize(v) for v in value]
+    return value
+
+
 def _node_to_dict(node: Any) -> dict:
     """Serialise a neo4j Node to a JSON-safe dict."""
     return {
         "id": node.element_id,
         "labels": list(node.labels),
-        "properties": dict(node),
+        "properties": _sanitize(dict(node)),
     }
 
 
@@ -70,7 +87,7 @@ def _rel_to_dict(rel: Any) -> dict:
         "type": rel.type,
         "startNodeId": rel.start_node.element_id,
         "endNodeId": rel.end_node.element_id,
-        "properties": dict(rel),
+        "properties": _sanitize(dict(rel)),
     }
 
 

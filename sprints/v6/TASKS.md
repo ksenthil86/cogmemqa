@@ -1,6 +1,6 @@
 # Sprint v6 — Tasks: CoGMEM-Inspector (B10)
 
-## Status: In Progress (1/10)
+## Status: In Progress (2/10)
 
 ---
 
@@ -25,7 +25,8 @@
 
 ---
 
-- [ ] Task 2: Graph data endpoint `GET /api/graph` (P0)
+- [x] Task 2: Graph data endpoint `GET /api/graph` (P0)
+  - Completed: 2026-06-21 — 18 tests green; fixed neo4j DateTime serialization via _sanitize() helper; LIMIT 200 bounds relationships not nodes (test corrected); 327/327 suite; bandit clean
   - Acceptance:
     - `GET /api/graph` executes:
       ```cypher
