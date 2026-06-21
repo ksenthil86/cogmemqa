@@ -166,6 +166,29 @@ python scripts/replay_meridian.py --dry-run
 
 ---
 
+## Inspector Dashboard (Sprint v6)
+
+After seeding the graph with `replay_meridian.py`, start the live inspector dashboard:
+
+```bash
+# Terminal 1 — backend
+uvicorn src.api:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 2 — frontend
+cd frontend && npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000)
+
+The dashboard shows:
+- **Graph canvas** (main area) — all CoGMEM nodes coloured by layer; click any node to expand its neighbours
+- **Health panel** (sidebar) — live coverage %, open findings by severity, report count, HEALTHY / NEEDS REVIEW status; auto-refreshes every 30 s
+- **Audit trail** (sidebar) — click a Requirement node in the canvas to see its full provenance chain: Requirement → Functionality → Component → File ← Commit
+
+Frontend dependencies: `cd frontend && npm install`
+
+---
+
 ## Run the Test Suite
 
 ```bash
@@ -269,5 +292,6 @@ Every agent decision writes `Judgment → HAS_STEP → ReasoningTrace` + `INFORM
 | v3 | B5, B6 | Execution & security — functional tester, Bandit scanner | 266 |
 | v4 | B7 | QA supervisor — health aggregation, Report node | 266 |
 | v5 | B8 | Build-cycle integration — commit ingestion, impact lookup, replay | 298 |
+| v6 | B10 | CoGMEM-Inspector dashboard — FastAPI + Next.js 15 + NVL graph canvas | 362 |
 
 See [DISSERTATION_SUMMARY.md](DISSERTATION_SUMMARY.md) for the full implementation report.

@@ -189,7 +189,8 @@
 
 ---
 
-- [ ] Task 10: Integration smoke + README update (P1)
+- [x] Task 10: Integration smoke + README update (P1)
+  - Completed: 2026-06-21 — 3 smoke E2E tests green (full layout, health status, no JS errors); README updated with Inspector Dashboard section + v6 row in sprint table; 362 Python tests pass; bandit clean; npm audit 0; 28/28 E2E tests green; build exits 0
   - Acceptance:
     - `cd frontend && npm run build` exits 0.
     - `python -m bandit -r src/ -q` still produces no output.
@@ -232,11 +233,11 @@ Task 1  (FastAPI scaffold + health + schema endpoints)
 
 ## Sprint v6 Definition of Done
 
-- [ ] `uvicorn src.api:app --port 8000` starts; all 5 API endpoints return valid JSON
-- [ ] `cd frontend && npm run build` exits 0
-- [ ] `http://localhost:3000` renders NVL graph canvas with coloured nodes
-- [ ] Clicking a node expands its neighbours in the canvas
-- [ ] Health panel shows live coverage %, findings, report count
-- [ ] Clicking a Requirement node populates audit trail panel
-- [ ] `pytest tests/` → 298/298 green (no regressions)
-- [ ] `python -m bandit -r src/ -q` → clean
+- [x] `uvicorn src.api:app --port 8000` starts; all 5 API endpoints return valid JSON
+- [x] `cd frontend && npm run build` exits 0
+- [x] `http://localhost:3000` renders NVL graph canvas with coloured nodes
+- [x] Clicking a node expands its neighbours in the canvas
+- [x] Health panel shows live coverage %, findings, report count
+- [x] Clicking a Requirement node populates audit trail panel
+- [x] `pytest tests/` → 362/362 green (298 original + 64 new v6 API tests)
+- [x] `python -m bandit -r src/ -q` → clean
