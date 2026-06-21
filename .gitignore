@@ -8,3 +8,5 @@ dist/
 .venv/
 venv/
 tests/screenshots/
+frontend/node_modules
+frontend/.next

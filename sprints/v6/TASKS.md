@@ -1,6 +1,6 @@
 # Sprint v6 — Tasks: CoGMEM-Inspector (B10)
 
-## Status: In Progress (4/10)
+## Status: In Progress (5/10)
 
 ---
 
@@ -84,7 +84,8 @@
 
 ---
 
-- [ ] Task 5: Next.js frontend scaffold with NVL dependency (P0)
+- [x] Task 5: Next.js frontend scaffold with NVL dependency (P0)
+  - Completed: 2026-06-21 — Next.js 15.3.9 + @neo4j-nvl/react@1.2.0 + tailwind + playwright; npm audit clean (js-cookie + postcss overrides); npm run build exits 0; 2 Playwright E2E tests green; screenshots in tests/screenshots/; 362/362 Python suite intact
   - Acceptance:
     - `frontend/` directory created at project root.
     - `frontend/package.json` has dependencies:
