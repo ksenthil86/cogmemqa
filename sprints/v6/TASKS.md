@@ -1,6 +1,6 @@
 # Sprint v6 — Tasks: CoGMEM-Inspector (B10)
 
-## Status: In Progress (3/10)
+## Status: In Progress (4/10)
 
 ---
 
@@ -63,7 +63,8 @@
 
 ---
 
-- [ ] Task 4: Audit trail endpoint `GET /api/audit/{req_id}` (P0)
+- [x] Task 4: Audit trail endpoint `GET /api/audit/{req_id}` (P0)
+  - Completed: 2026-06-21 — 19 tests green; req_id echoed, chain items have all 6 fields, unknown req returns empty chain not 404, LIMIT 3 bound verified; 362/362 suite; bandit clean
   - Acceptance:
     - `GET /api/audit/req-account-opening` returns the provenance chain from
       `demo_summary.py`'s `_provenance_chain()` query:
