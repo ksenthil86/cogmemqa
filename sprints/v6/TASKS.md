@@ -131,7 +131,8 @@
 
 ---
 
-- [ ] Task 7: Node expansion wired to `GraphCanvas` (P0)
+- [x] Task 7: Node expansion wired to `GraphCanvas` (P0)
+  - Completed: 2026-06-21 — handleNodeClick: sets activated flag for highlight, fetches /api/graph/expand, merges new nodes/rels by id (no duplicates); page.tsx wires onNodeClick→setSelectedNodeId; layout fixed h-screen so NVL canvas gets concrete height; 9/9 Playwright tests green; build+audit clean
   - Acceptance:
     - Clicking a node in `GraphCanvas` calls `GET /api/graph/expand?element_id=<id>`.
     - The returned nodes and relationships are merged into the existing canvas state

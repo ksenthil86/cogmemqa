@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { InteractiveNvlWrapper } from "@neo4j-nvl/react";
 import type { Node, Relationship } from "@neo4j-nvl/base";
 
@@ -30,6 +30,18 @@ interface ApiRel {
   properties: Record<string, unknown>;
 }
 
+function toNvlNode(n: ApiNode): Node {
+  return {
+    id: n.id,
+    color: getNodeColor(n.labels),
+    caption: (n.properties.id as string | undefined) || n.labels[0] || n.id,
+  };
+}
+
+function toNvlRel(r: ApiRel): Relationship {
+  return { id: r.id, from: r.startNodeId, to: r.endNodeId, type: r.type, caption: r.type };
+}
+
 interface Props {
   onNodeClick?: (nodeId: string) => void;
 }
@@ -47,26 +59,46 @@ export default function GraphCanvas({ onNodeClick }: Props) {
         return r.json() as Promise<{ nodes: ApiNode[]; relationships: ApiRel[] }>;
       })
       .then((data) => {
-        setNodes(
-          data.nodes.map((n) => ({
-            id: n.id,
-            color: getNodeColor(n.labels),
-            caption: (n.properties.id as string | undefined) || n.labels[0] || n.id,
-          }))
-        );
-        setRels(
-          data.relationships.map((r) => ({
-            id: r.id,
-            from: r.startNodeId,
-            to: r.endNodeId,
-            type: r.type,
-            caption: r.type,
-          }))
-        );
+        setNodes(data.nodes.map(toNvlNode));
+        setRels(data.relationships.map(toNvlRel));
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleNodeClick = useCallback(
+    (clickedId: string) => {
+      // Highlight the clicked node via the activated flag
+      setNodes((prev) =>
+        prev.map((n) => (n.id === clickedId ? { ...n, activated: true } : { ...n, activated: false }))
+      );
+
+      // Fetch neighbours and merge — silently ignore expansion failures
+      fetch(`${API_URL}/api/graph/expand?element_id=${encodeURIComponent(clickedId)}`)
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json() as Promise<{ nodes: ApiNode[]; relationships: ApiRel[] }>;
+        })
+        .then((data) => {
+          setNodes((prev) => {
+            const seen = new Set(prev.map((n) => n.id));
+            const fresh = data.nodes.filter((n) => !seen.has(n.id)).map(toNvlNode);
+            return fresh.length ? [...prev, ...fresh] : prev;
+          });
+          setRels((prev) => {
+            const seen = new Set(prev.map((r) => r.id));
+            const fresh = data.relationships.filter((r) => !seen.has(r.id)).map(toNvlRel);
+            return fresh.length ? [...prev, ...fresh] : prev;
+          });
+        })
+        .catch(() => {
+          // Expansion failure is non-fatal — graph stays visible
+        });
+
+      onNodeClick?.(clickedId);
+    },
+    [onNodeClick]
+  );
 
   return (
     <div data-testid="graph-canvas" style={{ height: "100%", width: "100%" }}>
@@ -91,7 +123,7 @@ export default function GraphCanvas({ onNodeClick }: Props) {
           nodes={nodes}
           rels={rels}
           mouseEventCallbacks={{
-            onNodeClick: (node) => onNodeClick?.(node.id),
+            onNodeClick: (node) => handleNodeClick(node.id),
           }}
           nvlOptions={{ allowDynamicMinZoom: true }}
         />
