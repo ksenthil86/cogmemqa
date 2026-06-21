@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { InteractiveNvlWrapper } from "@neo4j-nvl/react";
 import type { Node, Relationship } from "@neo4j-nvl/base";
 
@@ -30,6 +30,11 @@ interface ApiRel {
   properties: Record<string, unknown>;
 }
 
+interface NodeMeta {
+  labels: string[];
+  logicalId: string;
+}
+
 function toNvlNode(n: ApiNode): Node {
   return {
     id: n.id,
@@ -43,7 +48,7 @@ function toNvlRel(r: ApiRel): Relationship {
 }
 
 interface Props {
-  onNodeClick?: (nodeId: string) => void;
+  onNodeClick?: (nodeId: string, labels: string[], logicalId: string) => void;
 }
 
 export default function GraphCanvas({ onNodeClick }: Props) {
@@ -52,6 +57,18 @@ export default function GraphCanvas({ onNodeClick }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Preserve label + logicalId for each node so page.tsx can filter by type
+  const nodeMetaRef = useRef<Map<string, NodeMeta>>(new Map());
+
+  const registerMeta = useCallback((apiNodes: ApiNode[]) => {
+    apiNodes.forEach((n) => {
+      nodeMetaRef.current.set(n.id, {
+        labels: n.labels,
+        logicalId: (n.properties.id as string | undefined) || n.id,
+      });
+    });
+  }, []);
+
   useEffect(() => {
     fetch(`${API_URL}/api/graph`)
       .then((r) => {
@@ -59,27 +76,31 @@ export default function GraphCanvas({ onNodeClick }: Props) {
         return r.json() as Promise<{ nodes: ApiNode[]; relationships: ApiRel[] }>;
       })
       .then((data) => {
+        registerMeta(data.nodes);
         setNodes(data.nodes.map(toNvlNode));
         setRels(data.relationships.map(toNvlRel));
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
-  }, []);
+  }, [registerMeta]);
 
   const handleNodeClick = useCallback(
     (clickedId: string) => {
-      // Highlight the clicked node via the activated flag
+      // Highlight clicked node
       setNodes((prev) =>
-        prev.map((n) => (n.id === clickedId ? { ...n, activated: true } : { ...n, activated: false }))
+        prev.map((n) =>
+          n.id === clickedId ? { ...n, activated: true } : { ...n, activated: false }
+        )
       );
 
-      // Fetch neighbours and merge — silently ignore expansion failures
+      // Expand neighbourhood — silently ignore expansion failures
       fetch(`${API_URL}/api/graph/expand?element_id=${encodeURIComponent(clickedId)}`)
         .then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.json() as Promise<{ nodes: ApiNode[]; relationships: ApiRel[] }>;
         })
         .then((data) => {
+          registerMeta(data.nodes);
           setNodes((prev) => {
             const seen = new Set(prev.map((n) => n.id));
             const fresh = data.nodes.filter((n) => !seen.has(n.id)).map(toNvlNode);
@@ -92,12 +113,13 @@ export default function GraphCanvas({ onNodeClick }: Props) {
           });
         })
         .catch(() => {
-          // Expansion failure is non-fatal — graph stays visible
+          // Non-fatal — graph stays visible
         });
 
-      onNodeClick?.(clickedId);
+      const meta = nodeMetaRef.current.get(clickedId);
+      onNodeClick?.(clickedId, meta?.labels ?? [], meta?.logicalId ?? clickedId);
     },
-    [onNodeClick]
+    [onNodeClick, registerMeta]
   );
 
   return (

@@ -163,7 +163,8 @@
 
 ---
 
-- [ ] Task 9: `AuditPanel` component + page layout (P1)
+- [x] Task 9: `AuditPanel` component + page layout (P1)
+  - Completed: 2026-06-21 — AuditPanel.tsx: vertical step list, empty/no-chain/error states; GraphCanvas updated to pass (labels, logicalId) to onNodeClick via nodeMetaRef; page.tsx: 280px sidebar (HealthPanel + AuditPanel) + main canvas; Requirement click sets selectedReqId; /audit-test page for isolated tests; 25/25 E2E green; npm audit 0; build exits 0
   - Acceptance:
     - `frontend/components/AuditPanel.tsx` accepts `reqId: string | null` prop.
     - When `reqId` is non-null, fetches `GET /api/audit/{reqId}` and renders
