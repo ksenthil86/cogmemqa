@@ -1,6 +1,6 @@
 # Sprint v6 — Tasks: CoGMEM-Inspector (B10)
 
-## Status: In Progress (2/10)
+## Status: In Progress (3/10)
 
 ---
 
@@ -46,7 +46,8 @@
 
 ---
 
-- [ ] Task 3: Node expansion endpoint `GET /api/graph/expand` (P0)
+- [x] Task 3: Node expansion endpoint `GET /api/graph/expand` (P0)
+  - Completed: 2026-06-21 — 16 tests green; fixture fixed to select connected node (isolated nodes return empty on expand, correct behavior); unknown elementId returns 200+empty; missing param returns 422; 343/343 suite; bandit clean
   - Acceptance:
     - `GET /api/graph/expand?element_id=<neo4j_element_id>` executes:
       ```cypher
