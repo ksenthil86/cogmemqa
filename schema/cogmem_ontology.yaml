@@ -1,0 +1,533 @@
+# CoGMEM-QA Ontology — create-context-graph format
+# https://github.com/neo4j-labs/create-context-graph
+#
+# Place this file in ~/.create-context-graph/custom-domains/ or pass via --domain flag.
+# Defines the 5-layer provenance graph for a memory-grounded multi-agent QA swarm.
+
+domain:
+  id: cogmem_qa
+  name: CoGMEM-QA
+  description: >
+    Memory-grounded multi-agent QA swarm for software delivery pipelines.
+    All agents share a typed Neo4j knowledge graph as their single source of truth.
+    Every agent decision is recorded as a provenance chain with full auditability.
+  tagline: Auditable multi-agent QA with graph memory
+  emoji: "🧠"
+
+# ─── Entity Types ─────────────────────────────────────────────────────────────
+# Five layers: Requirements → Capability → Implementation → Evidence → Reasoning
+# Colors match the CoGMEM-Inspector dashboard node palette.
+
+entity_types:
+
+  # ── Layer 1: Requirements ──────────────────────────────────────────────────
+
+  - label: Requirement
+    pole_type: OBJECT
+    subtype: business_requirement
+    color: "#3B82F6"
+    icon: file-text
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: title
+        type: string
+        required: true
+      - name: priority
+        type: string
+        required: false
+        enum: ["HIGH", "MEDIUM", "LOW"]
+      - name: reg_control
+        type: string
+        required: false
+
+  - label: AcceptanceCriterion
+    pole_type: OBJECT
+    subtype: acceptance_criterion
+    color: "#3B82F6"
+    icon: check-square
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: statement
+        type: string
+        required: true
+      - name: status
+        type: string
+        required: false
+        enum: ["draft", "active", "deprecated"]
+
+  - label: Actor
+    pole_type: PERSON
+    subtype: system_actor
+    color: "#3B82F6"
+    icon: user
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: role
+        type: string
+        required: false
+
+  # ── Layer 2: Capability ────────────────────────────────────────────────────
+
+  - label: Functionality
+    pole_type: OBJECT
+    subtype: system_capability
+    color: "#6366F1"
+    icon: zap
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+        required: false
+      - name: status
+        type: string
+        required: false
+        enum: ["active", "deprecated", "proposed"]
+
+  - label: Component
+    pole_type: OBJECT
+    subtype: software_component
+    color: "#22C55E"
+    icon: box
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: status
+        type: string
+        required: false
+
+  # ── Layer 3: Implementation ────────────────────────────────────────────────
+
+  - label: File
+    pole_type: OBJECT
+    subtype: source_file
+    color: "#22C55E"
+    icon: file-code
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: path
+        type: string
+        required: true
+      - name: language
+        type: string
+        required: false
+      - name: module
+        type: string
+        required: false
+
+  - label: Commit
+    pole_type: EVENT
+    subtype: code_commit
+    color: "#22C55E"
+    icon: git-commit
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: sha
+        type: string
+        required: true
+      - name: message
+        type: string
+        required: true
+      - name: author
+        type: string
+        required: false
+      - name: timestamp
+        type: datetime
+        required: true
+
+  # ── Layer 4: Evidence ──────────────────────────────────────────────────────
+
+  - label: Test
+    pole_type: OBJECT
+    subtype: test_case
+    color: "#F59E0B"
+    icon: beaker
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: type
+        type: string
+        required: false
+        enum: ["functional", "security", "integration", "unit"]
+      - name: status
+        type: string
+        required: false
+        enum: ["proposed", "active", "deprecated"]
+
+  - label: TestRun
+    pole_type: EVENT
+    subtype: test_execution
+    color: "#F59E0B"
+    icon: play-circle
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: outcome
+        type: string
+        required: true
+        enum: ["pass", "fail", "error", "skip"]
+      - name: duration
+        type: float
+        required: false
+      - name: timestamp
+        type: datetime
+        required: true
+
+  - label: SecurityFinding
+    pole_type: EVENT
+    subtype: security_vulnerability
+    color: "#F59E0B"
+    icon: alert-triangle
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: severity
+        type: string
+        required: true
+        enum: ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+      - name: status
+        type: string
+        required: false
+        enum: ["open", "resolved", "accepted"]
+      - name: title
+        type: string
+        required: true
+      - name: tool
+        type: string
+        required: false
+
+  - label: Report
+    pole_type: OBJECT
+    subtype: health_report
+    color: "#F59E0B"
+    icon: bar-chart
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: summary
+        type: string
+        required: true
+      - name: coverage_pct
+        type: float
+        required: false
+      - name: open_findings_count
+        type: integer
+        required: false
+      - name: created_at
+        type: datetime
+        required: true
+
+  # ── Layer 5: Reasoning ─────────────────────────────────────────────────────
+
+  - label: Judgment
+    pole_type: EVENT
+    subtype: agent_decision
+    color: "#A855F7"
+    icon: brain
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: agent_role
+        type: string
+        required: true
+        enum: ["requirements_parser", "test_case_generator", "functional_tester",
+               "security_tester", "qa_supervisor", "commit_ingestion"]
+      - name: label
+        type: string
+        required: true
+        enum: ["COMMIT_INGESTED", "HEALTH_REPORT_GENERATED", "SECURITY_FINDING",
+               "SECURITY_SCAN_COMPLETE", "FUNCTIONAL_RUN_COMPLETE", "FAILURE_CLASSIFIED"]
+      - name: confidence
+        type: float
+        required: false
+      - name: reasoning
+        type: string
+        required: false
+
+  - label: ReasoningTrace
+    pole_type: OBJECT
+    subtype: reasoning_step
+    color: "#A855F7"
+    icon: list
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: agent_role
+        type: string
+        required: true
+      - name: decision
+        type: string
+        required: true
+      - name: content
+        type: string
+        required: false
+      - name: timestamp
+        type: datetime
+        required: true
+
+# ─── Relationships ─────────────────────────────────────────────────────────────
+# All carry valid_from / valid_to timestamps (bi-temporal provenance).
+
+relationships:
+
+  # Requirements → Capability
+  - type: REALIZED_BY
+    source: Requirement
+    target: Functionality
+    description: "A business requirement is realised by a system functionality"
+
+  - type: DEFINED_FOR
+    source: AcceptanceCriterion
+    target: Requirement
+    description: "An acceptance criterion defines testable conditions for a requirement"
+
+  - type: USES
+    source: Requirement
+    target: Actor
+    description: "A requirement involves a specific actor or user role"
+
+  # Capability → Capability / Implementation
+  - type: COMPOSED_OF
+    source: Functionality
+    target: Component
+    description: "A functionality is composed of one or more software components"
+
+  - type: IMPLEMENTED_BY
+    source: Component
+    target: File
+    description: "A component is implemented by a source file"
+
+  # Evidence → Requirements / Capability
+  - type: COVERS_CRITERION
+    source: Test
+    target: AcceptanceCriterion
+    description: "A test covers a specific acceptance criterion"
+
+  - type: VERIFIES
+    source: Test
+    target: Functionality
+    description: "A test verifies that a functionality behaves correctly"
+
+  - type: INSTANCE_OF
+    source: TestRun
+    target: Test
+    description: "A test run is a concrete execution instance of a test"
+
+  # Implementation → Implementation
+  - type: MODIFIES
+    source: Commit
+    target: File
+    description: "A commit modifies one or more source files"
+
+  # Evidence → Capability
+  - type: AFFECTS
+    source: SecurityFinding
+    target: Component
+    description: "A security finding affects a component (propagates up to Requirement)"
+
+  # Reasoning → Evidence / Capability
+  - type: HAS_STEP
+    source: Judgment
+    target: ReasoningTrace
+    description: "A judgment is composed of one or more auditable reasoning steps"
+
+  - type: INFORMED_BY
+    source: Judgment
+    target: Requirement
+    description: "A judgment is informed by a requirement node"
+
+  - type: INFORMED_BY
+    source: Judgment
+    target: AcceptanceCriterion
+    description: "A judgment is informed by an acceptance criterion"
+
+  - type: INFORMED_BY
+    source: Judgment
+    target: Functionality
+    description: "A judgment is informed by a functionality node"
+
+  - type: INFORMED_BY
+    source: Judgment
+    target: Component
+    description: "A judgment is informed by a component node"
+
+  - type: INFORMED_BY
+    source: Judgment
+    target: File
+    description: "A judgment is informed by a file node"
+
+  - type: JUDGED
+    source: AcceptanceCriterion
+    target: Judgment
+    description: "An acceptance criterion is the subject of an agent judgment"
+
+  - type: PRODUCED
+    source: Judgment
+    target: Report
+    description: "A QA supervisor judgment produces a health report"
+
+# ─── Agent Tools ───────────────────────────────────────────────────────────────
+# Maps to the CoGMEM-Inspector FastAPI endpoints (src/api.py).
+
+agent_tools:
+  - name: get_health
+    description: >
+      Retrieve the current QA health snapshot: coverage percentage,
+      open finding counts by severity, and report count.
+    endpoint: GET /api/health
+
+  - name: get_graph
+    description: >
+      Retrieve the full provenance graph (up to 200 relationships),
+      excluding ReasoningTrace nodes for readability.
+    endpoint: GET /api/graph
+
+  - name: expand_node
+    description: >
+      Expand the neighbourhood of a specific graph node by its Neo4j element ID.
+      Returns all directly connected nodes and relationships.
+    endpoint: GET /api/graph/expand?element_id={id}
+
+  - name: get_audit_chain
+    description: >
+      Retrieve the full provenance chain for a requirement:
+      Requirement → Functionality → Component → File ← Commit.
+    endpoint: GET /api/audit/{req_id}
+
+  - name: get_schema
+    description: >
+      List all node labels present in the graph with their counts.
+    endpoint: GET /api/schema
+
+# ─── System Prompt ─────────────────────────────────────────────────────────────
+
+system_prompt: >
+  You are an auditable QA agent operating on a memory-grounded knowledge graph.
+  Every decision you make must be recorded as a Judgment node with a ReasoningTrace.
+  You have access to tools that read from a shared Neo4j graph — never call another agent
+  directly; all coordination happens through the graph.
+  When analysing a commit, always: (1) look up the impact chain from File to Requirement,
+  (2) re-run functional tests for affected components, (3) scan for security findings,
+  (4) produce a health Report with coverage_pct and open_findings_count.
+
+# ─── Decision Traces ───────────────────────────────────────────────────────────
+# Example reasoning patterns stored in the graph as Judgment → HAS_STEP → ReasoningTrace.
+
+decision_traces:
+  - label: COMMIT_INGESTED
+    agent: commit_ingestion
+    steps:
+      - "Received commit sha b800001 modifying AccountController.java"
+      - "impact_lookup: File → comp-account-opening → func-account-opening → req-account-opening"
+      - "Recorded Commit node and MODIFIES edge to file-account-opening"
+      - "Triggered build cycle: B5 → B6 → B7"
+
+  - label: FUNCTIONAL_RUN_COMPLETE
+    agent: functional_tester
+    steps:
+      - "Retrieved 10 active Tests linked to affected Functionality nodes"
+      - "Executed each Test against stub HTTP endpoint"
+      - "All 10 returned status_code=200 → outcome=pass"
+      - "Created 10 TestRun nodes with INSTANCE_OF edges"
+
+  - label: SECURITY_SCAN_COMPLETE
+    agent: security_tester
+    steps:
+      - "Ran Bandit static scan over src/ directory"
+      - "Found 1 finding: B105 LOW — hardcoded password in account_utils.py"
+      - "Created SecurityFinding node with AFFECTS edge to comp-account-opening"
+
+  - label: HEALTH_REPORT_GENERATED
+    agent: qa_supervisor
+    steps:
+      - "Queried coverage: 10/10 ACs covered → coverage_pct=100.0"
+      - "Queried open findings: 1 LOW, 0 MEDIUM, 0 HIGH"
+      - "Assessed: coverage complete but open LOW finding → status=NEEDS REVIEW"
+      - "Created Report node and Judgment(HEALTH_REPORT_GENERATED)"
+
+# ─── Demo Scenarios ────────────────────────────────────────────────────────────
+
+demo_scenarios:
+  - question: "What is the current test coverage?"
+    tool: get_health
+    expected_fields: [coverage_pct, covered_ac, total_ac]
+
+  - question: "Show me the provenance chain for the account opening requirement."
+    tool: get_audit_chain
+    example_arg: "req-account-opening"
+
+  - question: "Which files were touched by the last commit and what requirements are affected?"
+    tool: get_graph
+    cypher_hint: >
+      MATCH (c:Commit)-[:MODIFIES]->(f:File)<-[:IMPLEMENTED_BY]-(comp:Component)
+      <-[:COMPOSED_OF]-(func:Functionality)<-[:REALIZED_BY]-(r:Requirement)
+      RETURN c.sha, f.path, r.title ORDER BY c.timestamp DESC LIMIT 5
+
+  - question: "Are there any open security findings on high-priority requirements?"
+    cypher_hint: >
+      MATCH (sf:SecurityFinding {status: 'open'})-[:AFFECTS]->(comp:Component)
+      <-[:COMPOSED_OF]-(func:Functionality)<-[:REALIZED_BY]-(r:Requirement {priority: 'HIGH'})
+      RETURN r.title, sf.severity, sf.title
+
+# ─── Visualization ─────────────────────────────────────────────────────────────
+# Matches the CoGMEM-Inspector NVL dashboard colour scheme.
+
+visualization:
+  node_colors:
+    Requirement:         "#3B82F6"   # blue       — Layer 1 Requirements
+    AcceptanceCriterion: "#3B82F6"   # blue
+    Actor:               "#3B82F6"   # blue
+    Functionality:       "#6366F1"   # indigo     — Layer 2 Capability
+    Component:           "#22C55E"   # green      — Layer 3 Implementation
+    File:                "#22C55E"   # green
+    Commit:              "#22C55E"   # green
+    Test:                "#F59E0B"   # amber      — Layer 4 Evidence
+    TestRun:             "#F59E0B"   # amber
+    SecurityFinding:     "#F59E0B"   # amber
+    Report:              "#F59E0B"   # amber
+    Judgment:            "#A855F7"   # purple     — Layer 5 Reasoning
+    ReasoningTrace:      "#A855F7"   # purple
+  default_color:         "#6B7280"   # gray
