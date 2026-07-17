@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CoGMEM Inspector",
-  description: "Live audit dashboard for the CoGMEM-QA knowledge graph",
+  description: "Chat-driven audit dashboard for the CoGMEM-QA knowledge graph",
 };
 
 export default function RootLayout({
@@ -13,7 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-gray-950 text-gray-100 h-full">{children}</body>
+      <body className="bg-gray-100 text-gray-900 h-full">{children}</body>
     </html>
   );
 }

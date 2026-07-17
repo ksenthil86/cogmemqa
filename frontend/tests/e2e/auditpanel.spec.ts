@@ -29,15 +29,6 @@ const MOCK_GRAPH = {
   ],
 };
 
-const MOCK_HEALTH = {
-  coverage_pct: 87.5,
-  covered_ac: 7,
-  total_ac: 8,
-  open_findings_count: 2,
-  by_severity: { low: 1, medium: 1, high: 0 },
-  report_count: 3,
-};
-
 // ── AuditPanel isolated tests ─────────────────────────────────────────────────
 
 test("task9-01 AuditPanel shows select prompt when reqId is null", async ({ page }) => {
@@ -105,73 +96,17 @@ test("task9-05 AuditPanel shows error state when API fails", async ({ page }) =>
   await expect(page.getByTestId("audit-error")).toBeVisible();
 });
 
-// ── Page layout tests ─────────────────────────────────────────────────────────
-
-test("task9-06 sidebar and main canvas area are present in full layout", async ({ page }) => {
-  await page.route("**/api/graph", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_GRAPH) })
-  );
-  await page.route("**/api/health", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_HEALTH) })
-  );
-  await page.route("**/api/audit/**", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_AUDIT) })
-  );
-
-  await page.goto("/");
-  await page.waitForTimeout(1000);
-  await page.screenshot({ path: `${SCREENSHOTS}/task9-06-full-layout.png` });
-
-  await expect(page.getByTestId("sidebar")).toBeVisible();
-  await expect(page.getByTestId("main-canvas")).toBeVisible();
-
-  // Sidebar width should be ~280px
-  const box = await page.getByTestId("sidebar").boundingBox();
-  expect(box?.width).toBeCloseTo(280, -1); // within ±10px
-});
-
-test("task9-07 HealthPanel is inside the sidebar", async ({ page }) => {
-  await page.route("**/api/graph", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_GRAPH) })
-  );
-  await page.route("**/api/health", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_HEALTH) })
-  );
-  await page.route("**/api/audit/**", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_EMPTY_AUDIT) })
-  );
-
-  await page.goto("/");
-  await page.waitForTimeout(1000);
-  await page.screenshot({ path: `${SCREENSHOTS}/task9-07-health-in-sidebar.png` });
-
-  // HealthPanel is inside sidebar
-  const healthInSidebar = page.getByTestId("sidebar").getByTestId("health-panel");
-  await expect(healthInSidebar).toBeVisible();
-});
-
-test("task9-08 AuditPanel is inside the sidebar showing select prompt initially", async ({ page }) => {
-  await page.route("**/api/graph", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_GRAPH) })
-  );
-  await page.route("**/api/health", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_HEALTH) })
-  );
-
-  await page.goto("/");
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: `${SCREENSHOTS}/task9-08-audit-in-sidebar.png` });
-
-  const auditInSidebar = page.getByTestId("sidebar").getByTestId("audit-empty");
-  await expect(auditInSidebar).toBeVisible();
-});
+// ── Page layout test (v7 three-panel layout) ──────────────────────────────────
 
 test("task9-09 GraphCanvas NVL canvas is inside main-canvas area", async ({ page }) => {
   await page.route("**/api/graph", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_GRAPH) })
   );
-  await page.route("**/api/health", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_HEALTH) })
+  await page.route("**/api/traces", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" })
+  );
+  await page.route("**/api/reports", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" })
   );
 
   await page.goto("/");

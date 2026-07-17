@@ -5,11 +5,14 @@ Thin FastAPI wrapper over src/memory_api.py. Exposes the live Neo4j graph
 as JSON endpoints consumed by the Next.js NVL frontend.
 
 Endpoints:
-  GET /api/health          — coverage + security + report counts (B7 metrics)
-  GET /api/schema          — node label counts (for layer colour mapping)
-  GET /api/graph           — default graph snapshot for NVL canvas
-  GET /api/graph/expand    — 1-hop neighbourhood for a given elementId
-  GET /api/audit/{req_id}  — provenance chain for a Requirement
+  GET  /api/health          — coverage + security + report counts (B7 metrics)
+  GET  /api/schema          — node label counts (for layer colour mapping)
+  GET  /api/graph           — default graph snapshot for NVL canvas
+  GET  /api/graph/expand    — 1-hop neighbourhood for a given elementId
+  GET  /api/audit/{req_id}  — provenance chain for a Requirement
+  POST /api/chat            — Gemini agent loop over the graph (chat panel)
+  GET  /api/traces          — Judgment → ReasoningTrace decision traces
+  GET  /api/reports         — health Report nodes (documents tab)
 """
 from __future__ import annotations
 
@@ -20,10 +23,12 @@ from typing import Any
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 load_dotenv()
 
 from src import memory_api  # noqa: E402 — after dotenv
+from src.chat_agent import run_chat_agent  # noqa: E402
 from src.db import get_driver  # noqa: E402
 
 
@@ -47,66 +52,19 @@ _FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[_FRONTEND_ORIGIN],
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Helpers (moved to src/graph_serialization.py; re-exported for back-compat) ─
 
-def _sanitize(value: Any) -> Any:
-    """Recursively convert neo4j temporal types to ISO strings."""
-    try:
-        from neo4j.time import DateTime, Date, Time, Duration
-        if isinstance(value, (DateTime, Date, Time)):
-            return value.iso_format()
-        if isinstance(value, Duration):
-            return str(value)
-    except ImportError:
-        pass
-    if isinstance(value, dict):
-        return {k: _sanitize(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_sanitize(v) for v in value]
-    return value
-
-
-def _node_to_dict(node: Any) -> dict:
-    """Serialise a neo4j Node to a JSON-safe dict."""
-    return {
-        "id": node.element_id,
-        "labels": list(node.labels),
-        "properties": _sanitize(dict(node)),
-    }
-
-
-def _rel_to_dict(rel: Any) -> dict:
-    """Serialise a neo4j Relationship to a JSON-safe dict."""
-    return {
-        "id": rel.element_id,
-        "type": rel.type,
-        "startNodeId": rel.start_node.element_id,
-        "endNodeId": rel.end_node.element_id,
-        "properties": _sanitize(dict(rel)),
-    }
-
-
-def _merge_graph(existing: dict, incoming: dict) -> dict:
-    """Merge incoming nodes/rels into existing, deduplicating by id."""
-    node_ids = {n["id"] for n in existing["nodes"]}
-    rel_ids  = {r["id"] for r in existing["relationships"]}
-
-    for node in incoming["nodes"]:
-        if node["id"] not in node_ids:
-            existing["nodes"].append(node)
-            node_ids.add(node["id"])
-
-    for rel in incoming["relationships"]:
-        if rel["id"] not in rel_ids:
-            existing["relationships"].append(rel)
-            rel_ids.add(rel["id"])
-
-    return existing
+from src.graph_serialization import (  # noqa: E402, F401
+    _sanitize,
+    _node_to_dict,
+    _rel_to_dict,
+    _merge_graph,
+)
 
 
 # ── Endpoints (Task 1: health + schema) ───────────────────────────────────────
@@ -237,3 +195,105 @@ def get_audit(req_id: str) -> dict:
         for r in rows
     ]
     return {"req_id": req_id, "chain": chain}
+
+
+# ── Endpoints (chat + traces + reports) ───────────────────────────────────────
+
+class ChatTurn(BaseModel):
+    role: str  # "user" | "model"
+    text: str
+
+
+class ChatRequest(BaseModel):
+    message: str
+    history: list[ChatTurn] = []
+
+
+@app.post(
+    "/api/chat",
+    responses={
+        422: {"description": "Empty message"},
+        502: {"description": "Chat agent / LLM failure"},
+    },
+)
+async def post_chat(req: ChatRequest) -> dict:
+    """
+    Run the Gemini tool loop over the graph and return the final answer.
+
+    Response shape:
+      {response, tool_calls: [{name, inputs, duration_ms, output_preview}],
+       graph_data: {nodes, relationships}}
+    """
+    if not req.message.strip():
+        raise HTTPException(status_code=422, detail="message must not be empty")
+
+    # Test hook: tests set app.state.chat_generate_fn to stub out Gemini.
+    generate_fn = getattr(app.state, "chat_generate_fn", None)
+    try:
+        return await run_chat_agent(
+            get_driver(),
+            req.message,
+            history=[t.model_dump() for t in req.history],
+            generate_fn=generate_fn,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"chat agent failed: {exc}") from exc
+
+
+@app.get("/api/traces")
+def get_traces(agent_role: str | None = None) -> list[dict]:
+    """Decision traces: Judgment nodes with their ordered ReasoningTrace steps."""
+    driver = get_driver()
+    cypher = (
+        "MATCH (j:Judgment) "
+        + ("WHERE j.agent_role = $agent_role " if agent_role else "")
+        + "OPTIONAL MATCH (j)-[:HAS_STEP]->(t:ReasoningTrace) "
+        "WITH j, t ORDER BY t.timestamp "
+        "WITH j, collect(t) AS steps "
+        "RETURN j, steps "
+        "ORDER BY j.id DESC LIMIT 50"
+    )
+    params = {"agent_role": agent_role} if agent_role else {}
+    with driver.session() as s:
+        rows = list(s.run(cypher, **params))
+
+    traces = []
+    for row in rows:
+        j = row["j"]
+        traces.append({
+            "id":         j.get("id"),
+            "label":      j.get("label"),
+            "agent_role": j.get("agent_role"),
+            "confidence": j.get("confidence"),
+            "reasoning":  j.get("reasoning"),
+            "steps": [
+                {
+                    "id":        t.get("id"),
+                    "decision":  t.get("decision"),
+                    "content":   t.get("content"),
+                    "timestamp": _sanitize(t.get("timestamp")),
+                }
+                for t in row["steps"]
+            ],
+        })
+    return traces
+
+
+@app.get("/api/reports")
+def get_reports() -> list[dict]:
+    """Health Report nodes, newest first — powers the Documents tab."""
+    driver = get_driver()
+    with driver.session() as s:
+        rows = s.run(
+            "MATCH (r:Report) RETURN r ORDER BY r.created_at DESC LIMIT 50"
+        ).data()
+    return [
+        {
+            "id":                  r["r"].get("id"),
+            "summary":             r["r"].get("summary"),
+            "coverage_pct":        r["r"].get("coverage_pct"),
+            "open_findings_count": r["r"].get("open_findings_count"),
+            "created_at":          _sanitize(r["r"].get("created_at")),
+        }
+        for r in rows
+    ]

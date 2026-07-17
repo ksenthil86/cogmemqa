@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { InteractiveNvlWrapper } from "@neo4j-nvl/react";
 import type { Node, Relationship } from "@neo4j-nvl/base";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import type { ApiGraph, ApiNode, ApiRel, SelectedNode } from "@/lib/types";
+import { API_URL } from "@/lib/api";
 
 function getNodeColor(labels: string[]): string {
   const first = labels[0] ?? "";
@@ -16,23 +16,10 @@ function getNodeColor(labels: string[]): string {
   return "#6B7280";
 }
 
-interface ApiNode {
-  id: string;
-  labels: string[];
-  properties: Record<string, unknown>;
-}
-
-interface ApiRel {
-  id: string;
-  type: string;
-  startNodeId: string;
-  endNodeId: string;
-  properties: Record<string, unknown>;
-}
-
 interface NodeMeta {
   labels: string[];
   logicalId: string;
+  properties: Record<string, unknown>;
 }
 
 function toNvlNode(n: ApiNode): Node {
@@ -48,16 +35,18 @@ function toNvlRel(r: ApiRel): Relationship {
 }
 
 interface Props {
-  onNodeClick?: (nodeId: string, labels: string[], logicalId: string) => void;
+  onNodeClick?: (node: SelectedNode) => void;
+  /** Graph data pushed from outside (e.g. chat tool results); merged by id. */
+  externalGraph?: ApiGraph | null;
 }
 
-export default function GraphCanvas({ onNodeClick }: Props) {
+export default function GraphCanvas({ onNodeClick, externalGraph }: Props) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [rels, setRels] = useState<Relationship[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Preserve label + logicalId for each node so page.tsx can filter by type
+  // Preserve label + logicalId + properties per node for the detail card
   const nodeMetaRef = useRef<Map<string, NodeMeta>>(new Map());
 
   const registerMeta = useCallback((apiNodes: ApiNode[]) => {
@@ -65,15 +54,34 @@ export default function GraphCanvas({ onNodeClick }: Props) {
       nodeMetaRef.current.set(n.id, {
         labels: n.labels,
         logicalId: (n.properties.id as string | undefined) || n.id,
+        properties: n.properties,
       });
     });
   }, []);
+
+  // Merge incoming API graph data into NVL state, deduplicating by elementId.
+  const mergeGraph = useCallback(
+    (data: ApiGraph) => {
+      registerMeta(data.nodes);
+      setNodes((prev) => {
+        const seen = new Set(prev.map((n) => n.id));
+        const fresh = data.nodes.filter((n) => !seen.has(n.id)).map(toNvlNode);
+        return fresh.length ? [...prev, ...fresh] : prev;
+      });
+      setRels((prev) => {
+        const seen = new Set(prev.map((r) => r.id));
+        const fresh = data.relationships.filter((r) => !seen.has(r.id)).map(toNvlRel);
+        return fresh.length ? [...prev, ...fresh] : prev;
+      });
+    },
+    [registerMeta]
+  );
 
   useEffect(() => {
     fetch(`${API_URL}/api/graph`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<{ nodes: ApiNode[]; relationships: ApiRel[] }>;
+        return r.json() as Promise<ApiGraph>;
       })
       .then((data) => {
         registerMeta(data.nodes);
@@ -83,6 +91,13 @@ export default function GraphCanvas({ onNodeClick }: Props) {
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
   }, [registerMeta]);
+
+  // Nodes surfaced by chat tool calls flow in through externalGraph.
+  useEffect(() => {
+    if (externalGraph && externalGraph.nodes.length) {
+      mergeGraph(externalGraph);
+    }
+  }, [externalGraph, mergeGraph]);
 
   const handleNodeClick = useCallback(
     (clickedId: string) => {
@@ -97,29 +112,22 @@ export default function GraphCanvas({ onNodeClick }: Props) {
       fetch(`${API_URL}/api/graph/expand?element_id=${encodeURIComponent(clickedId)}`)
         .then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json() as Promise<{ nodes: ApiNode[]; relationships: ApiRel[] }>;
+          return r.json() as Promise<ApiGraph>;
         })
-        .then((data) => {
-          registerMeta(data.nodes);
-          setNodes((prev) => {
-            const seen = new Set(prev.map((n) => n.id));
-            const fresh = data.nodes.filter((n) => !seen.has(n.id)).map(toNvlNode);
-            return fresh.length ? [...prev, ...fresh] : prev;
-          });
-          setRels((prev) => {
-            const seen = new Set(prev.map((r) => r.id));
-            const fresh = data.relationships.filter((r) => !seen.has(r.id)).map(toNvlRel);
-            return fresh.length ? [...prev, ...fresh] : prev;
-          });
-        })
+        .then(mergeGraph)
         .catch(() => {
           // Non-fatal — graph stays visible
         });
 
       const meta = nodeMetaRef.current.get(clickedId);
-      onNodeClick?.(clickedId, meta?.labels ?? [], meta?.logicalId ?? clickedId);
+      onNodeClick?.({
+        elementId: clickedId,
+        labels: meta?.labels ?? [],
+        logicalId: meta?.logicalId ?? clickedId,
+        properties: meta?.properties ?? {},
+      });
     },
-    [onNodeClick, registerMeta]
+    [onNodeClick, mergeGraph]
   );
 
   return (

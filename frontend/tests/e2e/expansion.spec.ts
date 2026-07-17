@@ -100,7 +100,7 @@ test("task7-03 no JS errors during full lifecycle with mocked graph", async ({ p
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${SCREENSHOTS}/task7-03-no-errors.png` });
 
-  await expect(page.getByTestId("page-title")).toHaveText("CoGMEM Inspector");
+  await expect(page.getByTestId("page-title")).toContainText("CoGMEM Inspector");
 
   const unexpectedErrors = jsErrors.filter(
     (e) => !e.includes("Failed to fetch") && !e.includes("NetworkError")

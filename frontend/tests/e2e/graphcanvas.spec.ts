@@ -38,6 +38,6 @@ test("task6-02 page shows loading or error state (backend may not be running)", 
 test("task6-03 page title still shows CoGMEM Inspector after GraphCanvas added", async ({ page }) => {
   await page.goto("/");
   await page.screenshot({ path: `${SCREENSHOTS}/task6-03-title-with-canvas.png` });
-  await expect(page.getByTestId("page-title")).toHaveText("CoGMEM Inspector");
-  await expect(page).toHaveTitle(/CoGMEM/);
+  await expect(page.getByTestId("page-title")).toContainText("CoGMEM Inspector");
+  await expect(page).toHaveTitle(/CoGMEM|Context Graph/);
 });

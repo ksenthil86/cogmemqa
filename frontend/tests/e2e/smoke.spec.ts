@@ -1,5 +1,5 @@
 /**
- * Sprint v6 integration smoke — verifies the complete inspector dashboard.
+ * v7 integration smoke — verifies the three-panel chat inspector.
  * All APIs are mocked so the test requires only the Next.js dev server.
  */
 import { test, expect } from "@playwright/test";
@@ -7,18 +7,9 @@ import path from "path";
 
 const SCREENSHOTS = path.resolve(__dirname, "../../../tests/screenshots");
 
-const MOCK_HEALTH = {
-  coverage_pct: 100.0,
-  covered_ac: 10,
-  total_ac: 10,
-  open_findings_count: 1,
-  by_severity: { low: 1, medium: 0, high: 0 },
-  report_count: 5,
-};
-
 const MOCK_GRAPH = {
   nodes: [
-    { id: "n1", labels: ["Requirement"], properties: { id: "req-account-opening" } },
+    { id: "n1", labels: ["Requirement"], properties: { id: "req-account-opening", title: "Account Opening" } },
     { id: "n2", labels: ["Functionality"], properties: { id: "func-account-opening" } },
     { id: "n3", labels: ["Component"], properties: { id: "comp-account-opening" } },
     { id: "n4", labels: ["File"], properties: { id: "src/account/AccountController.java" } },
@@ -30,100 +21,87 @@ const MOCK_GRAPH = {
   ],
 };
 
-const MOCK_EXPAND = { nodes: [], relationships: [] };
+const MOCK_TRACES = [
+  {
+    id: "judgment-1",
+    label: "HEALTH_REPORT_GENERATED",
+    agent_role: "qa_supervisor",
+    confidence: 0.9,
+    reasoning: "Coverage complete; 1 open LOW finding.",
+    steps: [
+      { id: "t1", decision: "Queried coverage", content: "10/10 ACs covered", timestamp: "2026-07-16T00:00:00Z" },
+      { id: "t2", decision: "Assessed status", content: "NEEDS REVIEW", timestamp: "2026-07-16T00:00:01Z" },
+    ],
+  },
+];
 
-const MOCK_AUDIT = {
-  req_id: "req-account-opening",
-  chain: [
-    {
-      req: "req-account-opening",
-      req_title: "Account Opening",
-      func: "func-account-opening",
-      comp: "comp-account-opening",
-      file: "src/account/AccountController.java",
-      commit_sha: "b800001",
-    },
-  ],
-};
+const MOCK_REPORTS = [
+  {
+    id: "report-1",
+    summary: "All acceptance criteria covered; 1 open LOW security finding.",
+    coverage_pct: 100.0,
+    open_findings_count: 1,
+    created_at: "2026-07-16T00:00:00Z",
+  },
+];
 
-test("task10-01 full inspector dashboard renders all panels", async ({ page }) => {
-  await page.route("**/api/health", (r) =>
-    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_HEALTH) })
-  );
+async function mockApis(page: import("@playwright/test").Page) {
   await page.route("**/api/graph", (r) =>
     r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_GRAPH) })
   );
   await page.route("**/api/graph/expand**", (r) =>
-    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_EXPAND) })
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ nodes: [], relationships: [] }) })
   );
-  await page.route("**/api/audit/**", (r) =>
-    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_AUDIT) })
+  await page.route("**/api/traces**", (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_TRACES) })
   );
+  await page.route("**/api/reports", (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_REPORTS) })
+  );
+}
+
+test("v7-01 three-panel inspector renders", async ({ page }) => {
+  await mockApis(page);
 
   await page.goto("/");
   await page.waitForTimeout(1500);
-  await page.screenshot({ path: `${SCREENSHOTS}/task10-01-full-dashboard.png` });
+  await page.screenshot({ path: `${SCREENSHOTS}/v7-01-three-panels.png` });
 
   // Header
-  await expect(page.getByTestId("page-title")).toHaveText("CoGMEM Inspector");
+  await expect(page.getByTestId("page-title")).toContainText("CoGMEM Inspector");
 
-  // Sidebar present with correct width
-  const sidebar = page.getByTestId("sidebar");
-  await expect(sidebar).toBeVisible();
-  const box = await sidebar.boundingBox();
-  expect(box?.width).toBeCloseTo(280, -1);
+  // Chat panel
+  await expect(page.getByTestId("chat-input")).toBeVisible();
+  await expect(page.getByTestId("demo-scenario").first()).toBeVisible();
 
-  // HealthPanel loaded — status card shows
-  await expect(page.getByTestId("health-status")).toBeVisible();
+  // Graph panel — NVL canvas inside the sized container
+  await expect(page.getByTestId("main-canvas").getByTestId("nvl-c2d-canvas")).toBeVisible();
 
-  // AuditPanel default state
-  await expect(page.getByTestId("audit-empty")).toBeVisible();
-
-  // NVL graph canvas renders
-  await expect(page.getByTestId("nvl-c2d-canvas")).toBeVisible();
+  // Decision panel — trace card from mock
+  await expect(page.getByTestId("trace-card")).toBeVisible();
+  await expect(page.getByTestId("trace-card")).toContainText("Health Report Generated");
 });
 
-test("task10-02 health panel shows NEEDS REVIEW (one low finding)", async ({ page }) => {
-  await page.route("**/api/health", (r) =>
-    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_HEALTH) })
-  );
-  await page.route("**/api/graph", (r) =>
-    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_GRAPH) })
-  );
-  await page.route("**/api/graph/expand**", (r) =>
-    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_EXPAND) })
-  );
+test("v7-02 documents tab shows health reports", async ({ page }) => {
+  await mockApis(page);
 
   await page.goto("/");
-  await page.waitForTimeout(1000);
-  await page.screenshot({ path: `${SCREENSHOTS}/task10-02-health-status.png` });
+  await page.getByTestId("tab-documents").click();
+  await page.screenshot({ path: `${SCREENSHOTS}/v7-02-documents-tab.png` });
 
-  // 1 open finding → NEEDS REVIEW even at 100% coverage
-  await expect(page.getByTestId("health-status")).toHaveText("NEEDS REVIEW");
-  await expect(page.getByTestId("health-coverage")).toContainText("10/10 ACs");
-  await expect(page.getByTestId("health-coverage")).toContainText("100.0%");
+  await expect(page.getByTestId("report-card")).toBeVisible();
+  await expect(page.getByTestId("report-card")).toContainText("report-1");
 });
 
-test("task10-03 no JS errors during complete dashboard lifecycle", async ({ page }) => {
+test("v7-03 no JS errors during dashboard lifecycle", async ({ page }) => {
   const jsErrors: string[] = [];
   page.on("pageerror", (err) => jsErrors.push(err.message));
 
-  await page.route("**/api/health", (r) =>
-    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_HEALTH) })
-  );
-  await page.route("**/api/graph", (r) =>
-    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_GRAPH) })
-  );
-  await page.route("**/api/graph/expand**", (r) =>
-    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_EXPAND) })
-  );
-  await page.route("**/api/audit/**", (r) =>
-    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_AUDIT) })
-  );
+  await mockApis(page);
 
   await page.goto("/");
   await page.waitForTimeout(2000);
-  await page.screenshot({ path: `${SCREENSHOTS}/task10-03-no-errors.png` });
+  await page.screenshot({ path: `${SCREENSHOTS}/v7-03-no-errors.png` });
 
   const unexpectedErrors = jsErrors.filter(
     (e) => !e.includes("Failed to fetch") && !e.includes("NetworkError")

@@ -13,7 +13,7 @@ from typing import Callable
 
 from google import genai
 
-_MODEL = "gemini-2.0-flash"
+_MODEL = "gemini-flash-latest"
 
 
 @lru_cache(maxsize=1)
