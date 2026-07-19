@@ -45,7 +45,7 @@ export interface ChatTurn {
 export interface ChatMessage {
   role: "user" | "assistant";
   text: string;
-  toolCalls?: ToolCall[];
+  toolCalls?: ToolCallState[];
   /** distinct node-label counts from graph_data, e.g. {Requirement: 2} */
   labelCounts?: Record<string, number>;
   /** memory extraction counts from the backend, shown as badges */
@@ -77,6 +77,28 @@ export interface Report {
   coverage_pct: number | null;
   open_findings_count: number | null;
   created_at: string | null;
+}
+
+export type ChatStreamEvent =
+  | { event: "session_id"; data: { session_id: string } }
+  | { event: "tool_start"; data: { name: string; inputs: Record<string, unknown> } }
+  | {
+      event: "tool_end";
+      data: ToolCall & { graph_data: ApiGraph | null };
+    }
+  | { event: "text_delta"; data: { text: string } }
+  | { event: "entities_extracted"; data: { count: number } }
+  | { event: "preferences_detected"; data: { count: number } }
+  | { event: "error"; data: { detail: string } }
+  | { event: "done"; data: Partial<ChatResult> & { session_id: string } };
+
+/** A tool row in the live timeline. */
+export interface ToolCallState {
+  name: string;
+  inputs: Record<string, unknown>;
+  status: "running" | "complete" | "error";
+  durationMs?: number;
+  outputPreview?: string;
 }
 
 export interface SelectedNode {

@@ -5,30 +5,16 @@ import { InteractiveNvlWrapper } from "@neo4j-nvl/react";
 import type { Node, Relationship } from "@neo4j-nvl/base";
 import type { ApiGraph, ApiNode, ApiRel, SelectedNode } from "@/lib/types";
 import { API_URL } from "@/lib/api";
+import { DEFAULT_NODE_COLOR, FALLBACK_CONFIG, fetchAppConfig } from "@/lib/config";
 
-function getNodeColor(labels: string[]): string {
-  const first = labels[0] ?? "";
-  if (["Project", "Epic"].includes(first)) return "#F43F5E";
-  if (["Requirement", "AcceptanceCriterion", "Actor"].includes(first)) return "#3B82F6";
-  if (first === "Functionality") return "#6366F1";
-  if (["Component", "File", "Commit"].includes(first)) return "#22C55E";
-  if (["Test", "TestRun", "SecurityFinding", "Report"].includes(first)) return "#F59E0B";
-  if (["Judgment", "ReasoningTrace"].includes(first)) return "#A855F7";
-  return "#6B7280";
-}
+const SELECTED_COLOR = "#E53E3E";
+const EXPANDED_COLOR = "#38A169";
+const SELECTED_SIZE = 32;
 
 interface NodeMeta {
   labels: string[];
   logicalId: string;
   properties: Record<string, unknown>;
-}
-
-function toNvlNode(n: ApiNode): Node {
-  return {
-    id: n.id,
-    color: getNodeColor(n.labels),
-    caption: (n.properties.id as string | undefined) || n.labels[0] || n.id,
-  };
 }
 
 function toNvlRel(r: ApiRel): Relationship {
@@ -49,6 +35,42 @@ export default function GraphCanvas({ onNodeClick, externalGraph }: Props) {
 
   // Preserve label + logicalId + properties per node for the detail card
   const nodeMetaRef = useRef<Map<string, NodeMeta>>(new Map());
+  // Colors come from /api/config (schema/cogmem-qa.yaml); fallback until loaded.
+  const colorsRef = useRef<Record<string, string>>(FALLBACK_CONFIG.node_colors);
+  const selectedIdRef = useRef<string | null>(null);
+  const expandedIdsRef = useRef<Set<string>>(new Set());
+
+  const baseColor = useCallback((id: string): string => {
+    const label = nodeMetaRef.current.get(id)?.labels[0] ?? "";
+    return colorsRef.current[label] ?? DEFAULT_NODE_COLOR;
+  }, []);
+
+  /** Scaffold-style styling: selected red + bigger, expanded green. */
+  const styleNode = useCallback(
+    (n: Node): Node => {
+      if (n.id === selectedIdRef.current) {
+        return { ...n, color: SELECTED_COLOR, size: SELECTED_SIZE };
+      }
+      if (expandedIdsRef.current.has(n.id)) {
+        return { ...n, color: EXPANDED_COLOR, size: undefined };
+      }
+      return { ...n, color: baseColor(n.id), size: undefined };
+    },
+    [baseColor]
+  );
+
+  const toNvlNode = useCallback(
+    (n: ApiNode): Node =>
+      styleNode({
+        id: n.id,
+        caption: (n.properties.id as string | undefined) || n.labels[0] || n.id,
+      }),
+    [styleNode]
+  );
+
+  const restyleAll = useCallback(() => {
+    setNodes((prev) => prev.map(styleNode));
+  }, [styleNode]);
 
   const registerMeta = useCallback((apiNodes: ApiNode[]) => {
     apiNodes.forEach((n) => {
@@ -75,11 +97,16 @@ export default function GraphCanvas({ onNodeClick, externalGraph }: Props) {
         return fresh.length ? [...prev, ...fresh] : prev;
       });
     },
-    [registerMeta]
+    [registerMeta, toNvlNode]
   );
 
   useEffect(() => {
-    fetch(`${API_URL}/api/graph`)
+    // Colors first (cached after first call), then the graph snapshot.
+    fetchAppConfig()
+      .then((cfg) => {
+        colorsRef.current = cfg.node_colors;
+      })
+      .then(() => fetch(`${API_URL}/api/graph`))
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<ApiGraph>;
@@ -91,7 +118,7 @@ export default function GraphCanvas({ onNodeClick, externalGraph }: Props) {
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
-  }, [registerMeta]);
+  }, [registerMeta, toNvlNode]);
 
   // Nodes surfaced by chat tool calls flow in through externalGraph.
   useEffect(() => {
@@ -100,25 +127,11 @@ export default function GraphCanvas({ onNodeClick, externalGraph }: Props) {
     }
   }, [externalGraph, mergeGraph]);
 
+  // Single click: select + inspect (no expansion).
   const handleNodeClick = useCallback(
     (clickedId: string) => {
-      // Highlight clicked node
-      setNodes((prev) =>
-        prev.map((n) =>
-          n.id === clickedId ? { ...n, activated: true } : { ...n, activated: false }
-        )
-      );
-
-      // Expand neighbourhood — silently ignore expansion failures
-      fetch(`${API_URL}/api/graph/expand?element_id=${encodeURIComponent(clickedId)}`)
-        .then((r) => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json() as Promise<ApiGraph>;
-        })
-        .then(mergeGraph)
-        .catch(() => {
-          // Non-fatal — graph stays visible
-        });
+      selectedIdRef.current = clickedId;
+      restyleAll();
 
       const meta = nodeMetaRef.current.get(clickedId);
       onNodeClick?.({
@@ -128,7 +141,27 @@ export default function GraphCanvas({ onNodeClick, externalGraph }: Props) {
         properties: meta?.properties ?? {},
       });
     },
-    [onNodeClick, mergeGraph]
+    [onNodeClick, restyleAll]
+  );
+
+  // Double click: expand the 1-hop neighbourhood.
+  const handleNodeDoubleClick = useCallback(
+    (clickedId: string) => {
+      expandedIdsRef.current.add(clickedId);
+      fetch(`${API_URL}/api/graph/expand?element_id=${encodeURIComponent(clickedId)}`)
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json() as Promise<ApiGraph>;
+        })
+        .then((data) => {
+          mergeGraph(data);
+          restyleAll();
+        })
+        .catch(() => {
+          // Non-fatal — graph stays visible
+        });
+    },
+    [mergeGraph, restyleAll]
   );
 
   return (
@@ -155,8 +188,17 @@ export default function GraphCanvas({ onNodeClick, externalGraph }: Props) {
           rels={rels}
           mouseEventCallbacks={{
             onNodeClick: (node) => handleNodeClick(node.id),
+            onNodeDoubleClick: (node) => handleNodeDoubleClick(node.id),
           }}
-          nvlOptions={{ allowDynamicMinZoom: true }}
+          nvlOptions={{
+            layout: "d3Force",
+            initialZoom: 1,
+            minZoom: 0.1,
+            maxZoom: 5,
+            relationshipThreshold: 0.55,
+            allowDynamicMinZoom: true,
+            disableTelemetry: true,
+          }}
         />
       )}
     </div>

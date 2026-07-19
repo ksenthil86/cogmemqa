@@ -1,17 +1,20 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { FALLBACK_CONFIG, fetchAppConfig } from "@/lib/config";
 import type { ApiGraph, SelectedNode } from "@/lib/types";
 
 const GraphCanvas = dynamic(() => import("@/components/GraphCanvas"), { ssr: false });
 
-const LAYERS = [
-  { label: "Portfolio", color: "#F43F5E" },
-  { label: "Requirements", color: "#3B82F6" },
-  { label: "Capability", color: "#6366F1" },
-  { label: "Implementation", color: "#22C55E" },
-  { label: "Evidence", color: "#F59E0B" },
-  { label: "Reasoning", color: "#A855F7" },
+/** Legend layers with a representative label whose color comes from /api/config. */
+const LAYER_REPS: Array<[layer: string, representative: string]> = [
+  ["Portfolio", "Project"],
+  ["Requirements", "Requirement"],
+  ["Capability", "Functionality"],
+  ["Implementation", "File"],
+  ["Evidence", "Test"],
+  ["Reasoning", "Judgment"],
 ];
 
 /** Properties worth surfacing in the detail card, in preference order. */
@@ -33,6 +36,14 @@ export default function ContextGraphPanel({
   onSelectNode,
   onAskAbout,
 }: Props) {
+  const [nodeColors, setNodeColors] = useState<Record<string, string>>(
+    FALLBACK_CONFIG.node_colors
+  );
+
+  useEffect(() => {
+    fetchAppConfig().then((cfg) => setNodeColors(cfg.node_colors));
+  }, []);
+
   const detailEntries = selectedNode
     ? DETAIL_KEYS.filter((k) => selectedNode.properties[k] != null)
         .slice(0, 4)
@@ -58,13 +69,13 @@ export default function ContextGraphPanel({
           {/* layer legend */}
           <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm">
             <ul className="space-y-2">
-              {LAYERS.map((l) => (
-                <li key={l.label} className="flex items-center gap-2 text-gray-700">
+              {LAYER_REPS.map(([layer, rep]) => (
+                <li key={layer} className="flex items-center gap-2 text-gray-700">
                   <span
                     className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                    style={{ background: l.color }}
+                    style={{ background: nodeColors[rep] ?? "#6B7280" }}
                   />
-                  {l.label}
+                  {layer}
                 </li>
               ))}
             </ul>

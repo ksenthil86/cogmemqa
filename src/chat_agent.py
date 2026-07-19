@@ -26,18 +26,14 @@ _MODEL = "gemini-flash-latest"
 _MAX_ITERATIONS = 10
 _OUTPUT_PREVIEW_CHARS = 600
 
-_SYSTEM_PROMPT = """\
-You are the CoGMEM-QA assistant: an auditable QA agent operating on a \
-memory-grounded knowledge graph for the Meridian Bank software delivery \
-pipeline. You answer questions about requirements, test coverage, security \
-findings, commits, and agent decisions by querying a shared Neo4j graph.
-
-You MUST use the available tools to query the knowledge graph before \
-answering any question about its contents. Prefer the predefined tools; use \
-execute_cypher only when no predefined tool fits. Never attempt to modify \
-the graph — you only have read access. For greetings or questions about the \
-user themselves, answer directly from the conversation/memory context — at \
-most one or two tool calls if graph data is genuinely needed.
+# Persona + core rules come from the domain ontology (schema/cogmem-qa.yaml);
+# the detailed property/relationship schema and Gemini-specific behavioral
+# rules below are appended in code.
+_PROMPT_DETAIL = """\
+Prefer the predefined tools; use \
+execute_cypher only when no predefined tool fits. For greetings or questions \
+about the user themselves, answer directly from the conversation/memory \
+context — at most one or two tool calls if graph data is genuinely needed.
 
 Graph schema (node labels by layer):
 - Portfolio: Project(id, name, description), Epic(id, name, description)
@@ -69,6 +65,13 @@ Answer concisely with concrete ids, titles, and numbers from the graph. \
 When the user asks a follow-up, reuse ids already established in the \
 conversation instead of re-listing everything.\
 """
+
+
+def _build_system_prompt() -> str:
+    from src.ontology import load_ontology
+
+    return load_ontology().system_prompt + "\n\n" + _PROMPT_DETAIL
+
 
 GenerateFn = Callable[[list[types.Content], types.GenerateContentConfig], Awaitable[Any]]
 
@@ -104,17 +107,47 @@ def _preview(data: Any) -> str:
     return text
 
 
+# Async callback receiving (event_name, payload) as the agent progresses.
+# Event names follow the create-context-graph SSE contract: tool_start,
+# tool_end, text_delta.
+EventCb = Callable[[str, dict], Awaitable[None]]
+
+_TEXT_DELTA_CHARS = 120
+
+
+async def _emit(event_cb: EventCb | None, event: str, data: dict) -> None:
+    if event_cb is not None:
+        await event_cb(event, data)
+
+
+async def _emit_text_deltas(event_cb: EventCb | None, text: str) -> None:
+    """Chunk the final answer into text_delta events on whitespace boundaries."""
+    if event_cb is None or not text:
+        return
+    start = 0
+    while start < len(text):
+        end = min(start + _TEXT_DELTA_CHARS, len(text))
+        if end < len(text):
+            space = text.rfind(" ", start, end)
+            if space > start:
+                end = space + 1
+        await event_cb("text_delta", {"text": text[start:end]})
+        start = end
+
+
 async def _execute_function_calls(
     driver: Driver,
     function_calls: list,
     tool_calls: list[dict],
     graph_data: dict,
+    event_cb: EventCb | None = None,
 ) -> list[types.Part]:
     """Run each requested tool; record telemetry and merge graphs in place."""
     response_parts: list[types.Part] = []
     for call in function_calls:
         name = call.name or ""
         args = dict(call.args or {})
+        await _emit(event_cb, "tool_start", {"name": name, "inputs": args})
         started = time.monotonic()
         result = await asyncio.to_thread(run_tool, driver, name, args)
         duration_ms = int((time.monotonic() - started) * 1000)
@@ -132,6 +165,11 @@ async def _execute_function_calls(
         if result.graph and result.graph.get("nodes"):
             _merge_graph(graph_data, result.graph)
 
+        await _emit(event_cb, "tool_end", {
+            **record,
+            "graph_data": result.graph if result.graph and result.graph.get("nodes") else None,
+        })
+
         response_parts.append(types.Part.from_function_response(
             name=name, response={"result": result.data},
         ))
@@ -145,6 +183,7 @@ async def run_chat_agent(
     generate_fn: GenerateFn | None = None,
     max_iterations: int = _MAX_ITERATIONS,
     memory_context: str | None = None,
+    event_cb: EventCb | None = None,
 ) -> dict:
     """
     Run the tool loop and return:
@@ -158,7 +197,7 @@ async def run_chat_agent(
     if generate_fn is None:
         generate_fn = _default_generate_fn()
 
-    system_instruction = _SYSTEM_PROMPT
+    system_instruction = _build_system_prompt()
     if memory_context:
         system_instruction += (
             "\n\n## Long-term memory and prior conversation context\n"
@@ -188,21 +227,20 @@ async def run_chat_agent(
         if not function_calls:
             # Final answer. response.text is None when no text parts exist.
             text = response.text or "I could not produce an answer for that question."
+            await _emit_text_deltas(event_cb, text)
             return {"response": text, "tool_calls": tool_calls, "graph_data": graph_data}
 
         # Echo the model's function-call content back into the conversation.
         contents.append(response.candidates[0].content)
 
         response_parts = await _execute_function_calls(
-            driver, function_calls, tool_calls, graph_data,
+            driver, function_calls, tool_calls, graph_data, event_cb,
         )
         contents.append(types.Content(role="user", parts=response_parts))
 
-    return {
-        "response": (
-            "I hit the tool-call limit before finishing. "
-            "Here is what I gathered so far — try narrowing the question."
-        ),
-        "tool_calls": tool_calls,
-        "graph_data": graph_data,
-    }
+    bailout = (
+        "I hit the tool-call limit before finishing. "
+        "Here is what I gathered so far — try narrowing the question."
+    )
+    await _emit_text_deltas(event_cb, bailout)
+    return {"response": bailout, "tool_calls": tool_calls, "graph_data": graph_data}

@@ -222,6 +222,17 @@ Open [http://localhost:3000](http://localhost:3000)
 | Context graph (middle) | NVL canvas coloured by layer; nodes returned by chat tools merge in live; click a node for details / "Ask about this" |
 | Decision traces / Documents (right) | Real Judgment → ReasoningTrace chains with agent-role filters; Documents tab lists health Reports |
 
+### Chat API (v9)
+
+The chat panel streams over SSE. Endpoints:
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/chat/stream` | SSE chat — events: `session_id`, `tool_start`, `tool_end` (with `graph_data`), `text_delta`, `entities_extracted`, `preferences_detected`, `error`, `done`. 120s idle / 300s overall timeout |
+| `POST /api/chat` | Non-streaming JSON variant (kept for compatibility) |
+| `GET /api/config` | Node colors/sizes + demo scenarios, served from `schema/cogmem-qa.yaml` — the single source of truth also feeding the agent system prompt |
+| `POST /api/cypher` | Read-only Cypher (`{query, parameters}`); write clauses and `CALL` are rejected with 422 |
+
 ### Conversation memory
 
 The chat is backed by [neo4j-agent-memory](https://github.com/neo4j-labs/agent-memory)

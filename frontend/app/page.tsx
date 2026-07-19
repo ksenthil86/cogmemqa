@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import ChatPanel from "@/components/ChatPanel";
 import ContextGraphPanel from "@/components/ContextGraphPanel";
 import DecisionPanel from "@/components/DecisionPanel";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import type { ApiGraph, SelectedNode } from "@/lib/types";
 
 export default function Home() {
@@ -43,18 +44,24 @@ export default function Home() {
       </header>
 
       <div className="flex flex-1 overflow-hidden" style={{ minHeight: 0 }}>
-        <ChatPanel
-          seedPrompt={seedPrompt}
-          onGraphData={handleGraphData}
-          onDone={() => setTracesVersion((v) => v + 1)}
-        />
-        <ContextGraphPanel
-          externalGraph={chatGraph}
-          selectedNode={selectedNode}
-          onSelectNode={setSelectedNode}
-          onAskAbout={handleAskAbout}
-        />
-        <DecisionPanel refreshKey={tracesVersion} />
+        <ErrorBoundary label="Chat panel">
+          <ChatPanel
+            seedPrompt={seedPrompt}
+            onGraphData={handleGraphData}
+            onDone={() => setTracesVersion((v) => v + 1)}
+          />
+        </ErrorBoundary>
+        <ErrorBoundary label="Context graph">
+          <ContextGraphPanel
+            externalGraph={chatGraph}
+            selectedNode={selectedNode}
+            onSelectNode={setSelectedNode}
+            onAskAbout={handleAskAbout}
+          />
+        </ErrorBoundary>
+        <ErrorBoundary label="Decision panel">
+          <DecisionPanel refreshKey={tracesVersion} />
+        </ErrorBoundary>
       </div>
     </main>
   );

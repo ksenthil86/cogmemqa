@@ -9,11 +9,12 @@ import {
   Puzzle,
   Send,
   Settings2,
+  Square,
   Wrench,
 } from "lucide-react";
-import { postChat } from "@/lib/api";
-import { DEMO_SCENARIOS } from "@/lib/scenarios";
-import type { ApiGraph, ChatMessage } from "@/lib/types";
+import { streamChat } from "@/lib/chatStream";
+import { fetchAppConfig, type DemoScenario } from "@/lib/config";
+import type { ApiGraph, ChatMessage, ChatStreamEvent } from "@/lib/types";
 
 const SESSION_KEY = "cogmem-chat-session";
 
@@ -64,19 +65,23 @@ function ToolCallCard({ message }: { message: ChatMessage }) {
             className="flex items-center justify-between gap-2"
           >
             <span className="flex min-w-0 items-center gap-1.5">
-              {tc.error ? (
+              {tc.status === "running" ? (
+                <Loader2 size={13} className="flex-shrink-0 animate-spin text-amber-600" />
+              ) : tc.status === "error" ? (
                 <AlertCircle size={13} className="flex-shrink-0 text-red-500" />
               ) : (
                 <CheckCircle2 size={13} className="flex-shrink-0 text-green-600" />
               )}
               <span className="truncate">{tc.name}</span>
             </span>
-            <span className="flex-shrink-0 text-amber-700">{tc.duration_ms}ms</span>
+            {tc.status !== "running" && (
+              <span className="flex-shrink-0 text-amber-700">{tc.durationMs}ms</span>
+            )}
           </li>
         ))}
-        {running && (
+        {running && !message.toolCalls?.length && (
           <li className="flex items-center gap-1.5 text-amber-700">
-            <Loader2 size={13} className="animate-spin" /> querying the graph…
+            <Loader2 size={13} className="animate-spin" /> thinking…
           </li>
         )}
       </ul>
@@ -118,6 +123,16 @@ export default function ChatPanel({ seedPrompt, onGraphData, onDone }: Props) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  // Text deltas buffer here and flush to state at most every 50ms.
+  const textBufferRef = useRef("");
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [scenarios, setScenarios] = useState<DemoScenario[]>([]);
+
+  useEffect(() => {
+    fetchAppConfig().then((cfg) => setScenarios(cfg.demo_scenarios));
+  }, []);
 
   useEffect(() => {
     if (seedPrompt) setInput(seedPrompt);
@@ -127,44 +142,123 @@ export default function ChatPanel({ seedPrompt, onGraphData, onDone }: Props) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  const patchLast = (patch: (m: ChatMessage) => ChatMessage) => {
+    setMessages((prev) => [...prev.slice(0, -1), patch(prev[prev.length - 1])]);
+  };
+
+  const flushText = () => {
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+    const buffered = textBufferRef.current;
+    if (buffered) patchLast((m) => ({ ...m, text: m.text + buffered }));
+    textBufferRef.current = "";
+  };
+
+  const handleEvent = (ev: ChatStreamEvent) => {
+    switch (ev.event) {
+      case "tool_start":
+        patchLast((m) => ({
+          ...m,
+          toolCalls: [
+            ...(m.toolCalls ?? []),
+            { name: ev.data.name, inputs: ev.data.inputs, status: "running" as const },
+          ],
+        }));
+        break;
+      case "tool_end": {
+        if (ev.data.graph_data?.nodes?.length) onGraphData?.(ev.data.graph_data);
+        patchLast((m) => {
+          const calls = [...(m.toolCalls ?? [])];
+          const idx = calls.findIndex(
+            (c) => c.status === "running" && c.name === ev.data.name
+          );
+          if (idx >= 0) {
+            calls[idx] = {
+              ...calls[idx],
+              status: ev.data.error ? "error" : "complete",
+              durationMs: ev.data.duration_ms,
+              outputPreview: ev.data.output_preview,
+            };
+          }
+          return { ...m, toolCalls: calls };
+        });
+        break;
+      }
+      case "text_delta":
+        textBufferRef.current += ev.data.text;
+        if (!flushTimerRef.current) {
+          flushTimerRef.current = setTimeout(flushText, 50);
+        }
+        break;
+      case "entities_extracted":
+        patchLast((m) => ({ ...m, entitiesExtracted: ev.data.count }));
+        break;
+      case "preferences_detected":
+        patchLast((m) => ({ ...m, preferencesDetected: ev.data.count }));
+        break;
+      case "error":
+        flushText();
+        patchLast((m) => ({ ...m, text: ev.data.detail, error: true, pending: false }));
+        break;
+      case "done": {
+        flushText();
+        const graph = ev.data.graph_data;
+        if (graph?.nodes?.length) onGraphData?.(graph);
+        patchLast((m) => ({
+          ...m,
+          // The done event carries the authoritative full response.
+          text: m.error ? m.text : (ev.data.response ?? m.text),
+          pending: false,
+          labelCounts: graph ? labelCountsFrom(graph) : m.labelCounts,
+        }));
+        break;
+      }
+    }
+  };
+
+  const stop = () => abortRef.current?.abort();
+
   const send = async (text: string) => {
     const question = text.trim();
     if (!question || busy) return;
 
     setBusy(true);
     setInput("");
+    textBufferRef.current = "";
     setMessages((prev) => [
       ...prev,
       { role: "user", text: question },
       { role: "assistant", text: "", pending: true, toolCalls: [] },
     ]);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      const result = await postChat(question, getSessionId());
-      if (result.graph_data.nodes.length) onGraphData?.(result.graph_data);
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        {
-          role: "assistant",
-          text: result.response,
-          toolCalls: result.tool_calls,
-          labelCounts: labelCountsFrom(result.graph_data),
-          entitiesExtracted: result.entities_extracted,
-          preferencesDetected: result.preferences_detected,
-        },
-      ]);
+      await streamChat({
+        message: question,
+        sessionId: getSessionId(),
+        onEvent: handleEvent,
+        signal: controller.signal,
+      });
       onDone?.();
     } catch (err) {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        {
-          role: "assistant",
-          text: err instanceof Error ? err.message : String(err),
-          error: true,
-        },
-      ]);
+      flushText();
+      const aborted = err instanceof DOMException && err.name === "AbortError";
+      patchLast((m) => ({
+        ...m,
+        text: aborted
+          ? m.text || "(stopped)"
+          : err instanceof Error
+            ? err.message
+            : String(err),
+        error: !aborted,
+        pending: false,
+      }));
     } finally {
       setBusy(false);
+      abortRef.current = null;
     }
   };
 
@@ -196,7 +290,7 @@ export default function ChatPanel({ seedPrompt, onGraphData, onDone }: Props) {
           ) : (
             <div key={i} className="flex flex-col gap-2">
               <ToolCallCard message={m} />
-              {m.pending ? (
+              {m.pending && !m.text ? (
                 <div className="flex items-center gap-2 text-sm text-gray-400">
                   <Loader2 size={15} className="animate-spin" /> thinking…
                 </div>
@@ -220,22 +314,24 @@ export default function ChatPanel({ seedPrompt, onGraphData, onDone }: Props) {
           )
         )}
 
-        <div>
-          <p className="mb-2 text-xs text-gray-500">Try a demo scenario:</p>
-          <div className="grid grid-cols-2 gap-2">
-            {DEMO_SCENARIOS.map((s) => (
-              <button
-                key={s.label}
-                data-testid="demo-scenario"
-                disabled={busy}
-                onClick={() => send(s.question)}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 transition hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
-              >
-                {s.label}
-              </button>
-            ))}
+        {scenarios.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs text-gray-500">Try a demo scenario:</p>
+            <div className="grid grid-cols-2 gap-2">
+              {scenarios.map((s) => (
+                <button
+                  key={s.name}
+                  data-testid="demo-scenario"
+                  disabled={busy}
+                  onClick={() => send(s.prompts[0])}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 transition hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {s.name}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="flex-shrink-0 border-t border-gray-200 p-3">
@@ -255,14 +351,25 @@ export default function ChatPanel({ seedPrompt, onGraphData, onDone }: Props) {
             placeholder="Ask about the knowledge graph..."
             className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-gray-800 placeholder:text-gray-400 focus:ring-0 disabled:opacity-50"
           />
-          <button
-            data-testid="chat-send"
-            type="submit"
-            disabled={busy || !input.trim()}
-            className="flex-shrink-0 rounded-lg bg-blue-500 p-1.5 text-white transition hover:bg-blue-600 disabled:opacity-50"
-          >
-            {busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-          </button>
+          {busy ? (
+            <button
+              data-testid="chat-stop"
+              type="button"
+              onClick={stop}
+              className="flex-shrink-0 rounded-lg bg-red-500 p-1.5 text-white transition hover:bg-red-600"
+            >
+              <Square size={15} />
+            </button>
+          ) : (
+            <button
+              data-testid="chat-send"
+              type="submit"
+              disabled={!input.trim()}
+              className="flex-shrink-0 rounded-lg bg-blue-500 p-1.5 text-white transition hover:bg-blue-600 disabled:opacity-50"
+            >
+              <Send size={15} />
+            </button>
+          )}
         </form>
       </div>
     </section>

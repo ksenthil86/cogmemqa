@@ -181,3 +181,19 @@ def test_reports_shape(client):
     assert reports, "seeded graph should contain Report nodes"
     report = reports[0]
     assert {"id", "summary", "coverage_pct", "open_findings_count", "created_at"} <= set(report)
+
+
+def test_chat_system_prompt_sourced_from_ontology(client):
+    """The agent persona must come from schema/cogmem-qa.yaml at runtime."""
+    seen: list = []
+
+    async def stub(contents, config):
+        seen.append(config)
+        return _text_response("ok")
+
+    app.state.chat_generate_fn = stub
+    client.post("/api/chat", json={"message": "hi"})
+    from src.ontology import load_ontology
+    prompt = seen[0].system_instruction
+    assert load_ontology().system_prompt in prompt
+    assert "Graph schema (node labels by layer):" in prompt

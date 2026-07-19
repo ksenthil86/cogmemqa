@@ -16,18 +16,24 @@ Endpoints:
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import os
 from contextlib import asynccontextmanager
 from uuid import uuid4
+
 from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 load_dotenv()
+
+_memory_log = logging.getLogger("cogmem.memory")
 
 from src import memory_api  # noqa: E402 — after dotenv
 from src.chat_agent import run_chat_agent  # noqa: E402
@@ -108,6 +114,19 @@ def get_schema() -> list[dict]:
             "ORDER BY count DESC"
         ).data()
     return [{"label": r["label"], "count": r["count"]} for r in rows]
+
+
+@app.get("/api/config")
+def get_config() -> dict:
+    """Presentation config served from schema/cogmem-qa.yaml (single source of truth)."""
+    from src.ontology import load_ontology
+
+    ont = load_ontology()
+    return {
+        "node_colors": ont.node_colors,
+        "node_sizes": ont.node_sizes,
+        "demo_scenarios": ont.demo_scenarios,
+    }
 
 
 # ── Endpoints (Tasks 2-4: graph, expand, audit) ───────────────────────────────
@@ -221,6 +240,37 @@ class ChatRequest(BaseModel):
     history: list[ChatTurn] = []
 
 
+async def _memory_pre_chat(
+    req: ChatRequest, session_id: str
+) -> tuple[bool, str | None, list[dict], dict]:
+    """Shared memory pre-step: returns (memory_active, memory_block, history, counts)."""
+    memory: MemoryService | None = getattr(app.state, "memory_service", None)
+    memory_active = bool(memory and memory.active)
+    memory_block = None
+    history = [t.model_dump() for t in req.history]
+    counts = {"entities": 0, "preferences": 0}
+    if memory_active:
+        # Defense-in-depth: MemoryService already swallows errors, but no
+        # memory implementation may ever take down the chat endpoint.
+        try:
+            memory_block, history = await memory.get_chat_context(session_id, req.message)
+            counts = await memory.record_user_message(session_id, req.message)
+        except Exception:
+            _memory_log.exception("memory pre-chat step failed")
+            memory_active = False
+            history = [t.model_dump() for t in req.history]
+    return memory_active, memory_block, history, counts
+
+
+async def _memory_post_chat(memory_active: bool, session_id: str, response: str) -> None:
+    memory: MemoryService | None = getattr(app.state, "memory_service", None)
+    if memory_active and memory is not None:
+        try:
+            await memory.record_model_message(session_id, response)
+        except Exception:
+            _memory_log.exception("memory post-chat step failed")
+
+
 @app.post(
     "/api/chat",
     responses={
@@ -245,22 +295,7 @@ async def post_chat(req: ChatRequest) -> dict:
         raise HTTPException(status_code=422, detail="message must not be empty")
 
     session_id = req.session_id or str(uuid4())
-    memory: MemoryService | None = getattr(app.state, "memory_service", None)
-    memory_active = bool(memory and memory.active)
-
-    memory_block = None
-    history = [t.model_dump() for t in req.history]
-    counts = {"entities": 0, "preferences": 0}
-    if memory_active:
-        # Defense-in-depth: MemoryService already swallows errors, but no
-        # memory implementation may ever take down the chat endpoint.
-        try:
-            memory_block, history = await memory.get_chat_context(session_id, req.message)
-            counts = await memory.record_user_message(session_id, req.message)
-        except Exception:
-            logging.getLogger("cogmem.memory").exception("memory pre-chat step failed")
-            memory_active = False
-            history = [t.model_dump() for t in req.history]
+    memory_active, memory_block, history, counts = await _memory_pre_chat(req, session_id)
 
     # Test hook: tests set app.state.chat_generate_fn to stub out Gemini.
     generate_fn = getattr(app.state, "chat_generate_fn", None)
@@ -275,11 +310,7 @@ async def post_chat(req: ChatRequest) -> dict:
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"chat agent failed: {exc}") from exc
 
-    if memory_active:
-        try:
-            await memory.record_model_message(session_id, result["response"])
-        except Exception:
-            logging.getLogger("cogmem.memory").exception("memory post-chat step failed")
+    await _memory_post_chat(memory_active, session_id, result["response"])
 
     result.update(
         session_id=session_id,
@@ -288,6 +319,151 @@ async def post_chat(req: ChatRequest) -> dict:
         preferences_detected=counts["preferences"],
     )
     return result
+
+
+class CypherRequest(BaseModel):
+    query: str
+    parameters: dict[str, Any] = {}
+
+
+@app.post(
+    "/api/cypher",
+    responses={422: {"description": "Empty or non-read-only query"}},
+)
+def post_cypher(req: CypherRequest) -> dict:
+    """
+    Execute read-only Cypher against the graph.
+
+    Unlike the create-context-graph scaffold (whose bolt /cypher path has no
+    guard), every query goes through chat_tools.assert_read_only.
+    Results capped at 100 records.
+    """
+    from src.chat_tools import CypherWriteError, assert_read_only
+    from src.graph_serialization import extract_graph_from_records
+
+    if not req.query.strip():
+        raise HTTPException(status_code=422, detail="query must not be empty")
+    try:
+        assert_read_only(req.query)
+    except CypherWriteError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    driver = get_driver()
+    with driver.session() as s:
+        records = list(s.run(req.query, **req.parameters))[:100]
+
+    graph = extract_graph_from_records(records)
+
+    def _render(value: Any) -> Any:
+        from neo4j.graph import Node, Path, Relationship
+
+        if isinstance(value, Node):
+            return _node_to_dict(value)
+        if isinstance(value, Relationship):
+            return _rel_to_dict(value)
+        if isinstance(value, Path):
+            return {"path_length": len(value.relationships)}
+        if isinstance(value, (list, tuple)):
+            return [_render(v) for v in value]
+        return _sanitize(value)
+
+    rows = [{k: _render(v) for k, v in rec.items()} for rec in records]
+    return {"rows": rows, "graph": graph}
+
+
+_SSE_IDLE_TIMEOUT_S = 120.0
+_SSE_OVERALL_TIMEOUT_S = 300.0
+
+
+def _sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
+
+
+@app.post(
+    "/api/chat/stream",
+    responses={422: {"description": "Empty message"}},
+)
+async def chat_stream(req: ChatRequest) -> StreamingResponse:
+    """
+    Streaming variant of POST /api/chat (SSE over a POST body).
+
+    Event order: session_id → (tool_start | tool_end)* → entities_extracted →
+    preferences_detected → text_delta* → done. `error` may appear instead of
+    text; the stream always terminates with `done`.
+    """
+    if not req.message.strip():
+        raise HTTPException(status_code=422, detail="message must not be empty")
+
+    session_id = req.session_id or str(uuid4())
+    generate_fn = getattr(app.state, "chat_generate_fn", None)
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def event_cb(event: str, data: dict) -> None:
+        await queue.put({"event": event, "data": data})
+
+    async def run_agent() -> None:
+        try:
+            memory_active, memory_block, history, counts = await _memory_pre_chat(
+                req, session_id
+            )
+            await event_cb("entities_extracted", {"count": counts["entities"]})
+            await event_cb("preferences_detected", {"count": counts["preferences"]})
+
+            result = await run_chat_agent(
+                get_driver(),
+                req.message,
+                history=history,
+                generate_fn=generate_fn,
+                memory_context=memory_block,
+                event_cb=event_cb,
+            )
+            await _memory_post_chat(memory_active, session_id, result["response"])
+            await event_cb("done", {
+                "response": result["response"],
+                "tool_calls": result["tool_calls"],
+                "graph_data": result["graph_data"],
+                "session_id": session_id,
+                "memory_active": memory_active,
+                "entities_extracted": counts["entities"],
+                "preferences_detected": counts["preferences"],
+            })
+        except Exception as exc:  # surfaced to the client as an SSE error event
+            logging.getLogger("cogmem.chat").exception("chat stream agent failed")
+            await event_cb("error", {"detail": f"chat agent failed: {exc}"})
+            await event_cb("done", {"session_id": session_id})
+
+    async def event_generator():
+        task = asyncio.create_task(run_agent())
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        yield _sse("session_id", {"session_id": session_id})
+        try:
+            while True:
+                if loop.time() - started > _SSE_OVERALL_TIMEOUT_S:
+                    yield _sse("error", {"detail": "Request exceeded maximum duration"})
+                    yield _sse("done", {"session_id": session_id})
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=_SSE_IDLE_TIMEOUT_S)
+                except asyncio.TimeoutError:
+                    yield _sse("error", {"detail": "Request timed out"})
+                    yield _sse("done", {"session_id": session_id})
+                    break
+                yield _sse(event["event"], event["data"])
+                if event["event"] == "done":
+                    break
+        finally:
+            task.cancel()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/api/traces")
