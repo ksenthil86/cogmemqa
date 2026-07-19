@@ -18,4 +18,8 @@ export const DEMO_SCENARIOS: { label: string; question: string }[] = [
     label: "Security findings",
     question: "Are there any open security findings on high-priority requirements?",
   },
+  {
+    label: "Portfolio structure",
+    question: "How is the Meridian project structured into epics?",
+  },
 ];

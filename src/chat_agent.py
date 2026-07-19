@@ -35,9 +35,12 @@ findings, commits, and agent decisions by querying a shared Neo4j graph.
 You MUST use the available tools to query the knowledge graph before \
 answering any question about its contents. Prefer the predefined tools; use \
 execute_cypher only when no predefined tool fits. Never attempt to modify \
-the graph — you only have read access.
+the graph — you only have read access. For greetings or questions about the \
+user themselves, answer directly from the conversation/memory context — at \
+most one or two tool calls if graph data is genuinely needed.
 
 Graph schema (node labels by layer):
+- Portfolio: Project(id, name, description), Epic(id, name, description)
 - Requirements: Requirement(id, title, priority, reg_control), \
 AcceptanceCriterion(id, statement, status), Actor(id, name, role)
 - Capability: Functionality(id, name, status), Component(id, name, status)
@@ -50,7 +53,9 @@ Failure, Artifact, Scan
 - Reasoning: Judgment(id, agent_role, label, confidence, reasoning), \
 ReasoningTrace(id, agent_role, decision, timestamp)
 
-Relationships: (Requirement)-[:REALIZED_BY]->(Functionality), \
+Relationships: (Project)-[:HAS_EPIC]->(Epic), \
+(Epic)-[:HAS_REQUIREMENT]->(Requirement), \
+(Requirement)-[:REALIZED_BY]->(Functionality), \
 (Functionality)-[:COMPOSED_OF]->(Component), \
 (Component)-[:IMPLEMENTED_BY]->(File), (Commit)-[:MODIFIES]->(File), \
 (Test)-[:VERIFIES]->(Functionality), \
@@ -139,6 +144,7 @@ async def run_chat_agent(
     history: list[dict] | None = None,
     generate_fn: GenerateFn | None = None,
     max_iterations: int = _MAX_ITERATIONS,
+    memory_context: str | None = None,
 ) -> dict:
     """
     Run the tool loop and return:
@@ -152,8 +158,17 @@ async def run_chat_agent(
     if generate_fn is None:
         generate_fn = _default_generate_fn()
 
+    system_instruction = _SYSTEM_PROMPT
+    if memory_context:
+        system_instruction += (
+            "\n\n## Long-term memory and prior conversation context\n"
+            + memory_context
+            + "\n(Use this context for personalization and follow-ups; the "
+            "graph tools remain the source of truth for graph facts.)"
+        )
+
     config = types.GenerateContentConfig(
-        system_instruction=_SYSTEM_PROMPT,
+        system_instruction=system_instruction,
         tools=[types.Tool(function_declarations=[
             spec.declaration for spec in CHAT_TOOLS.values()
         ])],

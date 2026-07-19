@@ -147,3 +147,25 @@ def test_graph_relationship_count_within_limit(client):
     assert len(data["relationships"]) <= 200, (
         f"Expected ≤200 relationships (LIMIT clause), got {len(data['relationships'])}"
     )
+
+
+def test_graph_excludes_memory_nodes(client, neo4j_driver):
+    """neo4j-agent-memory labels must never leak into the NVL canvas."""
+    with neo4j_driver.session() as s:
+        s.run(
+            "CREATE (c:Conversation {session_id: 'test-graph-excl'})"
+            "-[:HAS_MESSAGE]->(:Message {id: 'test-graph-excl-msg', content: 'x'})"
+        )
+    try:
+        data = client.get("/api/graph").json()
+        for node in data["nodes"]:
+            for label in ("Message", "Conversation", "Entity", "Preference"):
+                assert label not in node["labels"], (
+                    f"{label} node leaked into /api/graph response: {node['id']}"
+                )
+    finally:
+        with neo4j_driver.session() as s:
+            s.run(
+                "MATCH (c:Conversation {session_id: 'test-graph-excl'}) "
+                "OPTIONAL MATCH (c)-[:HAS_MESSAGE]->(m:Message) DETACH DELETE c, m"
+            )

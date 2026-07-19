@@ -8,6 +8,12 @@ description: >
 # Node labels are assigned to exactly one layer.
 
 layers:
+  portfolio:
+    description: "Portfolio hierarchy — projects and epics that group requirements"
+    labels:
+      - Project
+      - Epic
+
   requirements:
     description: "Business requirements and acceptance criteria — the 'why'"
     labels:
@@ -61,6 +67,38 @@ _temporal: &temporal
 # ─── Node definitions ─────────────────────────────────────────────────────────
 
 nodes:
+  # ── Portfolio layer ─────────────────────────────────────────────────────────
+
+  - label: Project
+    layer: portfolio
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: name
+        type: string
+        required: true
+        index: true
+      - name: description
+        type: string
+        required: false
+
+  - label: Epic
+    layer: portfolio
+    unique_key: id
+    properties:
+      - name: id
+        type: string
+        required: true
+      - name: name
+        type: string
+        required: true
+        index: true
+      - name: description
+        type: string
+        required: false
+
   # ── Requirements layer ──────────────────────────────────────────────────────
 
   - label: Requirement
@@ -387,6 +425,20 @@ nodes:
 # Cross-layer relationships. All carry valid_from / valid_to (bi-temporal).
 
 edges:
+  # Portfolio → Portfolio
+  - type: HAS_EPIC
+    from_label: Project
+    to_label: Epic
+    description: "A project contains one or more epics"
+    properties: *temporal
+
+  # Portfolio → Requirements
+  - type: HAS_REQUIREMENT
+    from_label: Epic
+    to_label: Requirement
+    description: "An epic contains one or more requirements"
+    properties: *temporal
+
   # Requirements → Capability
   - type: REALIZED_BY
     from_label: Requirement

@@ -9,6 +9,8 @@ import yaml
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "..", "schema", "schema.yaml")
 
 EXPECTED_NODE_LABELS = {
+    # portfolio layer
+    "Project", "Epic",
     # requirements layer
     "Requirement", "AcceptanceCriterion", "Actor",
     # capability layer
@@ -22,13 +24,16 @@ EXPECTED_NODE_LABELS = {
 }
 
 EXPECTED_EDGE_TYPES = {
+    "HAS_EPIC", "HAS_REQUIREMENT",
     "REALIZED_BY", "COMPOSED_OF", "IMPLEMENTED_BY",
     "VERIFIES", "COVERS_CRITERION", "AFFECTS",
     "INFORMED_BY", "HAS_STEP", "MODIFIES",
     "INSTANCE_OF", "JUDGED",
 }
 
-EXPECTED_LAYERS = {"requirements", "capability", "implementation", "evidence", "reasoning"}
+EXPECTED_LAYERS = {
+    "portfolio", "requirements", "capability", "implementation", "evidence", "reasoning",
+}
 
 
 @pytest.fixture(scope="module")

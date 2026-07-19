@@ -18,6 +18,10 @@ const MOCK_CHAT_RESULT = {
     ],
     relationships: [],
   },
+  session_id: "e2e-session",
+  memory_active: true,
+  entities_extracted: 2,
+  preferences_detected: 1,
 };
 
 async function mockApis(page: import("@playwright/test").Page) {
@@ -55,9 +59,11 @@ test("chat-01 send message → tool timeline, answer, badges, graph merge", asyn
   await expect(page.getByTestId("tool-call-item")).toContainText("get_health");
   await expect(page.getByTestId("tool-call-item")).toContainText("42ms");
 
-  // label badges from graph_data
+  // label badges from graph_data + memory extraction badges
   await expect(page.getByTestId("chat-badges")).toContainText("Requirement");
   await expect(page.getByTestId("chat-badges")).toContainText("Test");
+  await expect(page.getByTestId("chat-badges")).toContainText("2 entities extracted");
+  await expect(page.getByTestId("chat-badges")).toContainText("1 preference detected");
 
   await page.screenshot({ path: `${SCREENSHOTS}/chat-01-full-reply.png` });
   expect(chatCalls).toBe(1);
@@ -94,9 +100,9 @@ test("chat-03 backend failure renders error card", async ({ page }) => {
   await page.screenshot({ path: `${SCREENSHOTS}/chat-03-error-card.png` });
 });
 
-test("chat-04 follow-up sends prior turns as history", async ({ page }) => {
+test("chat-04 turns share a persisted session_id, no client history", async ({ page }) => {
   await mockApis(page);
-  const bodies: Array<{ message: string; history: Array<{ role: string; text: string }> }> = [];
+  const bodies: Array<{ message: string; session_id?: string; history?: unknown }> = [];
   await page.route("**/api/chat", async (r) => {
     bodies.push(JSON.parse(r.request().postData() ?? "{}"));
     return r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(MOCK_CHAT_RESULT) });
@@ -112,7 +118,10 @@ test("chat-04 follow-up sends prior turns as history", async ({ page }) => {
   await expect(page.getByTestId("chat-message-assistant").nth(1)).toBeVisible();
 
   expect(bodies).toHaveLength(2);
-  expect(bodies[0].history).toHaveLength(0);
-  expect(bodies[1].history).toHaveLength(2); // user + model from turn 1
-  expect(bodies[1].history[0].text).toBe("first question");
+  // History now lives server-side in conversation memory.
+  expect(bodies[0].history).toBeUndefined();
+  expect(bodies[1].history).toBeUndefined();
+  // Both requests carry the same sessionStorage-persisted session id.
+  expect(bodies[0].session_id).toBeTruthy();
+  expect(bodies[1].session_id).toBe(bodies[0].session_id);
 });

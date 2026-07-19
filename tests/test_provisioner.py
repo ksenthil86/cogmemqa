@@ -5,8 +5,9 @@ Requires a live Neo4j instance — uses the neo4j_driver fixture from conftest.p
 import pytest
 from src.provisioner import provision_schema
 
-# All 19 node labels defined in schema.yaml — each has unique_key = id
+# All 21 node labels defined in schema.yaml — each has unique_key = id
 EXPECTED_CONSTRAINED_LABELS = {
+    "Project", "Epic",
     "Requirement", "AcceptanceCriterion", "Actor",
     "Functionality", "Component",
     "File", "Contract", "Endpoint", "UIElement",
@@ -16,6 +17,8 @@ EXPECTED_CONSTRAINED_LABELS = {
 
 # Properties explicitly marked index: true in schema.yaml (not constraint-backing indexes)
 EXPECTED_RANGE_INDEXES = {
+    ("Project", "name"),
+    ("Epic", "name"),
     ("Requirement", "title"),
     ("Functionality", "name"),
     ("Component", "name"),

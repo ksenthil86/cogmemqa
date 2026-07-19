@@ -8,6 +8,8 @@ from pydantic import ValidationError
 
 # ── Node imports ──────────────────────────────────────────────────────────────
 from src.models import (
+    # portfolio layer
+    Project, Epic,
     # requirements layer
     Requirement, AcceptanceCriterion, Actor,
     # capability layer
@@ -21,6 +23,7 @@ from src.models import (
     # base classes
     BaseNode, BaseEdge,
     # edge models
+    HasEpicEdge, HasRequirementEdge,
     RealizedByEdge, ComposedOfEdge, ImplementedByEdge,
     VerifiesEdge, CoversCriterionEdge, AffectsEdge,
     InformedByEdge, HasStepEdge, ModifiesEdge,
@@ -71,6 +74,8 @@ def test_commit_valid():
 def test_all_node_labels_instantiate():
     """Smoke-test: every node model can be constructed with minimal required fields."""
     models_and_fields = [
+        (Project,           {"id": "pj1", "name": "N"}),
+        (Epic,              {"id": "ep-1", "name": "N"}),
         (Requirement,       {"id": "r1", "title": "T"}),
         (AcceptanceCriterion, {"id": "ac1", "statement": "S"}),
         (Actor,             {"id": "a1", "name": "N"}),
@@ -153,6 +158,8 @@ def test_edge_valid_to_can_be_set():
 def test_all_edge_models_default_valid_to_none():
     """Every edge model must default valid_to to None."""
     edge_instances = [
+        HasEpicEdge(from_id="a", to_id="b", valid_from=NOW),
+        HasRequirementEdge(from_id="a", to_id="b", valid_from=NOW),
         RealizedByEdge(from_id="a", to_id="b", valid_from=NOW),
         ComposedOfEdge(from_id="a", to_id="b", valid_from=NOW),
         ImplementedByEdge(from_id="a", to_id="b", valid_from=NOW),

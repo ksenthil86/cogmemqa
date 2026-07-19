@@ -97,6 +97,8 @@ def _seed_graph(driver) -> None:
 
     _clean_all_meridian(driver)
     with driver.session() as s:
+        s.run("MATCH (p:Project) DETACH DELETE p")
+        s.run("MATCH (e:Epic) DETACH DELETE e")
         s.run("MATCH (r:Report) DETACH DELETE r")
         s.run("MATCH (sf:SecurityFinding) DETACH DELETE sf")
         s.run("MATCH (tr:TestRun) DETACH DELETE tr")
@@ -112,6 +114,10 @@ def _seed_graph(driver) -> None:
 
     b3 = RequirementsParserAgent(driver=driver, llm_fn=lambda p: _MERIDIAN_RAW)
     b3.run(_MERIDIAN_SPEC_TEXT)
+
+    # Portfolio layer: Project → Epics → every Requirement (requirements exist now).
+    from scripts.backfill_portfolio import backfill_portfolio
+    backfill_portfolio(driver)
 
     b4 = TestCaseGeneratorAgent(driver=driver, llm_fn=_b4_stub_llm)
     b4.run(driver)

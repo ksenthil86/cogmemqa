@@ -6,6 +6,7 @@ import type { ApiGraph, SelectedNode } from "@/lib/types";
 const GraphCanvas = dynamic(() => import("@/components/GraphCanvas"), { ssr: false });
 
 const LAYERS = [
+  { label: "Portfolio", color: "#F43F5E" },
   { label: "Requirements", color: "#3B82F6" },
   { label: "Capability", color: "#6366F1" },
   { label: "Implementation", color: "#22C55E" },

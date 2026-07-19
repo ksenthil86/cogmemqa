@@ -214,13 +214,37 @@ cd frontend && npm run dev
 
 Open [http://localhost:3000](http://localhost:3000)
 
-**What you'll see:**
+**What you'll see (v7 three-panel layout):**
 
 | Panel | Description |
 |---|---|
-| Graph canvas (main) | All CoGMEM nodes coloured by layer; click any node to expand neighbours |
-| Health panel (sidebar) | Live coverage %, findings by severity, report count, HEALTHY / NEEDS REVIEW; refreshes every 30 s |
-| Audit trail (sidebar) | Click a Requirement node → shows full provenance chain: Req → Func → Comp → File ← Commit |
+| Chat (left) | Ask questions in natural language; a Gemini agent answers via Cypher tools. Shows the tool-call timeline plus badges for graph labels, extracted entities, and detected preferences |
+| Context graph (middle) | NVL canvas coloured by layer; nodes returned by chat tools merge in live; click a node for details / "Ask about this" |
+| Decision traces / Documents (right) | Real Judgment → ReasoningTrace chains with agent-role filters; Documents tab lists health Reports |
+
+### Conversation memory
+
+The chat is backed by [neo4j-agent-memory](https://github.com/neo4j-labs/agent-memory)
+(same Neo4j instance, Gemini via LiteLLM — reuses `GEMINI_API_KEY`). Each turn
+is stored per session (the browser keeps a `session_id` in sessionStorage);
+entities and preferences are extracted from user messages, and relevant
+long-term knowledge is injected into the agent prompt. Memory is best-effort:
+if it fails to start, chat still works using client-held history.
+
+Notes:
+
+- `MEMORY_ENABLED=false` disables memory (set in `.env.test` so the pytest
+  suite makes no Gemini calls).
+- Do **not** set `MEMORY_API_KEY` or `NAM_*` env vars — they silently
+  reconfigure the library (hosted NAMS backend / settings overrides).
+- The embedding model (`gemini-embedding-001`, 3072 dims) is locked into the
+  vector indexes on first startup. To change it later, drop the
+  `*_embedding_idx` indexes and re-embed.
+- Memory nodes (`Message`, `Conversation`, `Entity`, `Preference`) live in the
+  same database but are excluded from the graph canvas.
+- Messages are scoped per session, but extracted entities/preferences are
+  **global** (single-user design, matching the library defaults) — every
+  session shares the same long-term knowledge.
 
 **Node colour key:**
 

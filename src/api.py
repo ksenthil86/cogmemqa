@@ -16,8 +16,10 @@ Endpoints:
 """
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import asynccontextmanager
+from uuid import uuid4
 from typing import Any
 
 from dotenv import load_dotenv
@@ -30,6 +32,7 @@ load_dotenv()
 from src import memory_api  # noqa: E402 — after dotenv
 from src.chat_agent import run_chat_agent  # noqa: E402
 from src.db import get_driver  # noqa: E402
+from src.memory_client import MemoryService  # noqa: E402
 
 
 # ── App lifecycle ─────────────────────────────────────────────────────────────
@@ -37,7 +40,11 @@ from src.db import get_driver  # noqa: E402
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     get_driver().verify_connectivity()
+    memory = MemoryService()
+    await memory.start()  # best-effort: failure leaves memory.active == False
+    app.state.memory_service = memory
     yield
+    await memory.stop()
 
 
 app = FastAPI(
@@ -116,8 +123,11 @@ def get_graph() -> dict:
 
     with driver.session() as s:
         records = s.run(
+            # Excludes CoGMEM reasoning steps and neo4j-agent-memory nodes
+            # (Message/Conversation/Entity/Preference) from the canvas.
             "MATCH (n)-[r]->(m) "
-            "WHERE NOT n:ReasoningTrace AND NOT m:ReasoningTrace "
+            "WHERE none(x IN [n, m] WHERE x:ReasoningTrace OR x:Message "
+            "OR x:Conversation OR x:Entity OR x:Preference) "
             "RETURN n, r, m LIMIT 200"
         )
         for record in records:
@@ -206,6 +216,8 @@ class ChatTurn(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: str | None = None
+    # Deprecated: used only as a fallback when conversation memory is inactive.
     history: list[ChatTurn] = []
 
 
@@ -220,24 +232,62 @@ async def post_chat(req: ChatRequest) -> dict:
     """
     Run the Gemini tool loop over the graph and return the final answer.
 
+    Conversation memory (neo4j-agent-memory) is best-effort: when active,
+    history comes from the stored session and the prompt gains a long-term
+    memory block; when inactive, the client-sent history is used.
+
     Response shape:
       {response, tool_calls: [{name, inputs, duration_ms, output_preview}],
-       graph_data: {nodes, relationships}}
+       graph_data: {nodes, relationships}, session_id, memory_active,
+       entities_extracted, preferences_detected}
     """
     if not req.message.strip():
         raise HTTPException(status_code=422, detail="message must not be empty")
 
+    session_id = req.session_id or str(uuid4())
+    memory: MemoryService | None = getattr(app.state, "memory_service", None)
+    memory_active = bool(memory and memory.active)
+
+    memory_block = None
+    history = [t.model_dump() for t in req.history]
+    counts = {"entities": 0, "preferences": 0}
+    if memory_active:
+        # Defense-in-depth: MemoryService already swallows errors, but no
+        # memory implementation may ever take down the chat endpoint.
+        try:
+            memory_block, history = await memory.get_chat_context(session_id, req.message)
+            counts = await memory.record_user_message(session_id, req.message)
+        except Exception:
+            logging.getLogger("cogmem.memory").exception("memory pre-chat step failed")
+            memory_active = False
+            history = [t.model_dump() for t in req.history]
+
     # Test hook: tests set app.state.chat_generate_fn to stub out Gemini.
     generate_fn = getattr(app.state, "chat_generate_fn", None)
     try:
-        return await run_chat_agent(
+        result = await run_chat_agent(
             get_driver(),
             req.message,
-            history=[t.model_dump() for t in req.history],
+            history=history,
             generate_fn=generate_fn,
+            memory_context=memory_block,
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"chat agent failed: {exc}") from exc
+
+    if memory_active:
+        try:
+            await memory.record_model_message(session_id, result["response"])
+        except Exception:
+            logging.getLogger("cogmem.memory").exception("memory post-chat step failed")
+
+    result.update(
+        session_id=session_id,
+        memory_active=memory_active,
+        entities_extracted=counts["entities"],
+        preferences_detected=counts["preferences"],
+    )
+    return result
 
 
 @app.get("/api/traces")

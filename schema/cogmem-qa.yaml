@@ -1,0 +1,720 @@
+# CoGMEM-QA — create-context-graph custom domain
+#
+# Conforms to the authoring contract in
+# https://github.com/neo4j-labs/create-context-graph/blob/main/docs/docs/how-to/add-custom-domain.md
+# (structure mirrors src/create_context_graph/domains/software-engineering.yaml).
+#
+# Usage:
+#   create-context-graph my-app --ontology-file schema/cogmem-qa.yaml --framework <fw>
+#
+# Notes:
+# - domain.id is kebab-case and matches this filename (cogmem-qa.yaml).
+# - Node colors deliberately avoid _base entity colors (Person #22c55e,
+#   Organization #3b82f6, Location #a855f7), so shades differ slightly from
+#   the CoGMEM-Inspector dashboard palette.
+# - Every entity has one property with required: true + unique: true (id).
+
+inherits: _base
+
+domain:
+  id: cogmem-qa
+  name: CoGMEM-QA
+  description: >
+    Memory-grounded multi-agent QA swarm for software delivery pipelines.
+    All agents share a typed Neo4j knowledge graph as their single source of
+    truth, and every agent decision is recorded as an auditable provenance
+    chain from Project down to source files and test evidence.
+  tagline: "Auditable multi-agent QA with graph memory"
+  emoji: "🧠"
+
+# ─── Entity Types ──────────────────────────────────────────────────────────────
+# Six layers: Portfolio → Requirements → Capability → Implementation →
+# Evidence → Reasoning.
+
+entity_types:
+
+  # ── Layer 0: Portfolio ─────────────────────────────────────────────────────
+
+  - label: Project
+    pole_type: OBJECT
+    subtype: PROJECT
+    color: "#F43F5E"
+    icon: briefcase
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+
+  - label: Epic
+    pole_type: OBJECT
+    subtype: EPIC
+    color: "#F43F5E"
+    icon: layers
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+
+  # ── Layer 1: Requirements ──────────────────────────────────────────────────
+
+  - label: Requirement
+    pole_type: OBJECT
+    subtype: BUSINESS_REQUIREMENT
+    color: "#2563EB"
+    icon: file-text
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: title
+        type: string
+        required: true
+      - name: priority
+        type: string
+        enum: ["P0", "P1", "P2", "P3"]
+      - name: reg_control
+        type: string
+
+  - label: AcceptanceCriterion
+    pole_type: OBJECT
+    subtype: ACCEPTANCE_CRITERION
+    color: "#2563EB"
+    icon: check-square
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: statement
+        type: string
+        required: true
+      - name: status
+        type: string
+        enum: ["draft", "active", "deprecated"]
+
+  - label: Actor
+    pole_type: PERSON
+    subtype: SYSTEM_ACTOR
+    color: "#2563EB"
+    icon: user
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: role
+        type: string
+
+  # ── Layer 2: Capability ────────────────────────────────────────────────────
+
+  - label: Functionality
+    pole_type: OBJECT
+    subtype: SYSTEM_CAPABILITY
+    color: "#6366F1"
+    icon: zap
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+      - name: status
+        type: string
+        enum: ["active", "deprecated", "proposed"]
+
+  - label: Component
+    pole_type: OBJECT
+    subtype: SOFTWARE_COMPONENT
+    color: "#6366F1"
+    icon: box
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: status
+        type: string
+
+  # ── Layer 3: Implementation ────────────────────────────────────────────────
+
+  - label: File
+    pole_type: OBJECT
+    subtype: SOURCE_FILE
+    color: "#16A34A"
+    icon: file-code
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: path
+        type: string
+        required: true
+      - name: language
+        type: string
+      - name: module
+        type: string
+
+  - label: Commit
+    pole_type: EVENT
+    subtype: CODE_COMMIT
+    color: "#16A34A"
+    icon: git-commit
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: sha
+        type: string
+        required: true
+      - name: message
+        type: string
+        required: true
+      - name: author
+        type: string
+      - name: timestamp
+        type: datetime
+        required: true
+
+  # ── Layer 4: Evidence ──────────────────────────────────────────────────────
+
+  - label: Test
+    pole_type: OBJECT
+    subtype: TEST_CASE
+    color: "#F59E0B"
+    icon: beaker
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: type
+        type: string
+        enum: ["functional", "security", "integration", "unit"]
+      - name: status
+        type: string
+        enum: ["proposed", "active", "deprecated"]
+
+  - label: TestRun
+    pole_type: EVENT
+    subtype: TEST_EXECUTION
+    color: "#F59E0B"
+    icon: play-circle
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: outcome
+        type: string
+        required: true
+        enum: ["pass", "fail", "error", "skip"]
+      - name: duration
+        type: float
+      - name: timestamp
+        type: datetime
+        required: true
+
+  - label: SecurityFinding
+    pole_type: EVENT
+    subtype: SECURITY_VULNERABILITY
+    color: "#F59E0B"
+    icon: alert-triangle
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: severity
+        type: string
+        required: true
+        enum: ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+      - name: status
+        type: string
+        enum: ["open", "resolved", "accepted"]
+      - name: title
+        type: string
+        required: true
+      - name: tool
+        type: string
+
+  - label: Report
+    pole_type: OBJECT
+    subtype: HEALTH_REPORT
+    color: "#F59E0B"
+    icon: bar-chart
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: summary
+        type: string
+        required: true
+      - name: coverage_pct
+        type: float
+      - name: open_findings_count
+        type: integer
+      - name: created_at
+        type: datetime
+        required: true
+
+  # ── Layer 5: Reasoning ─────────────────────────────────────────────────────
+
+  - label: Judgment
+    pole_type: EVENT
+    subtype: AGENT_DECISION
+    color: "#9333EA"
+    icon: brain
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: agent_role
+        type: string
+        required: true
+      - name: label
+        type: string
+        required: true
+      - name: confidence
+        type: float
+      - name: reasoning
+        type: string
+
+  - label: ReasoningTrace
+    pole_type: OBJECT
+    subtype: REASONING_STEP
+    color: "#9333EA"
+    icon: list
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: agent_role
+        type: string
+        required: true
+      - name: decision
+        type: string
+        required: true
+      - name: content
+        type: string
+      - name: timestamp
+        type: datetime
+        required: true
+
+# ─── Relationships ─────────────────────────────────────────────────────────────
+# In the CoGMEM graph every relationship carries bi-temporal
+# valid_from / valid_to timestamps.
+
+relationships:
+
+  # Portfolio hierarchy
+  - type: HAS_EPIC
+    source: Project
+    target: Epic
+    description: "A project contains one or more epics"
+
+  - type: HAS_REQUIREMENT
+    source: Epic
+    target: Requirement
+    description: "An epic contains one or more requirements"
+
+  # Requirements → Capability
+  - type: REALIZED_BY
+    source: Requirement
+    target: Functionality
+    description: "A business requirement is realised by a system functionality"
+
+  - type: DEFINED_FOR
+    source: AcceptanceCriterion
+    target: Requirement
+    description: "An acceptance criterion defines testable conditions for a requirement"
+
+  - type: USES
+    source: Requirement
+    target: Actor
+    description: "A requirement involves a specific actor or user role"
+
+  # Capability → Implementation
+  - type: COMPOSED_OF
+    source: Functionality
+    target: Component
+    description: "A functionality is composed of one or more software components"
+
+  - type: IMPLEMENTED_BY
+    source: Component
+    target: File
+    description: "A component is implemented by a source file"
+
+  # Evidence → Requirements / Capability
+  - type: COVERS_CRITERION
+    source: Test
+    target: AcceptanceCriterion
+    description: "A test covers a specific acceptance criterion"
+
+  - type: VERIFIES
+    source: Test
+    target: Functionality
+    description: "A test verifies that a functionality behaves correctly"
+
+  - type: INSTANCE_OF
+    source: TestRun
+    target: Test
+    description: "A test run is a concrete execution instance of a test"
+
+  # Implementation → Implementation
+  - type: MODIFIES
+    source: Commit
+    target: File
+    description: "A commit modifies one or more source files"
+
+  # Evidence → Capability
+  - type: AFFECTS
+    source: SecurityFinding
+    target: Component
+    description: "A security finding affects a component (propagates up to Requirement)"
+
+  # Reasoning
+  - type: HAS_STEP
+    source: Judgment
+    target: ReasoningTrace
+    description: "A judgment is composed of one or more auditable reasoning steps"
+
+  - type: INFORMED_BY
+    source: Judgment
+    target: Requirement
+    description: "A judgment is informed by a requirement node"
+
+  - type: INFORMED_BY
+    source: Judgment
+    target: AcceptanceCriterion
+    description: "A judgment is informed by an acceptance criterion"
+
+  - type: INFORMED_BY
+    source: Judgment
+    target: Functionality
+    description: "A judgment is informed by a functionality node"
+
+  - type: INFORMED_BY
+    source: Judgment
+    target: Component
+    description: "A judgment is informed by a component node"
+
+  - type: INFORMED_BY
+    source: Judgment
+    target: File
+    description: "A judgment is informed by a file node"
+
+  - type: JUDGED
+    source: AcceptanceCriterion
+    target: Judgment
+    description: "An acceptance criterion is the subject of an agent judgment"
+
+  - type: PRODUCED
+    source: Judgment
+    target: Report
+    description: "A QA supervisor judgment produces a health report"
+
+# ─── Document Templates ────────────────────────────────────────────────────────
+
+document_templates:
+
+  - id: health_report
+    name: QA Health Report
+    description: Periodic pipeline health summaries produced by the QA supervisor
+    count: 5
+    prompt_template: |
+      Write a QA health report for the {{project.name}} delivery pipeline.
+      Coverage: {{report.coverage_pct}}% of acceptance criteria verified by
+      passing test runs. Open security findings: {{report.open_findings_count}}.
+      Summarize per-epic status, call out requirements whose acceptance
+      criteria lack passing coverage, and give an overall HEALTHY / NEEDS
+      REVIEW verdict with justification.
+    required_entities: [Report, Project, Epic, Requirement]
+
+  - id: security_finding_report
+    name: Security Finding Report
+    description: Triage write-ups for open security findings
+    count: 4
+    prompt_template: |
+      Write a security triage report for finding {{finding.title}}
+      (severity {{finding.severity}}, detected by {{finding.tool}}).
+      Affected component: {{component.name}}. Trace the impact upward to the
+      business requirement {{requirement.title}} and its regulatory control
+      {{requirement.reg_control}}. Include remediation recommendation and
+      suggested priority.
+    required_entities: [SecurityFinding, Component, Requirement]
+
+  - id: requirement_audit
+    name: Requirement Audit Trail
+    description: Full provenance narratives from requirement to code and evidence
+    count: 5
+    prompt_template: |
+      Write an audit-trail document for requirement {{requirement.title}}
+      ({{requirement.id}}, priority {{requirement.priority}}). Walk the chain:
+      functionality {{functionality.name}}, component {{component.name}},
+      implementing file {{file.path}}, and the commits that modified it.
+      List the tests covering its acceptance criteria and their latest run
+      outcomes, then state whether the requirement is fully verified.
+    required_entities: [Requirement, Functionality, Component, File, Commit, Test]
+
+# ─── Decision Traces ───────────────────────────────────────────────────────────
+# Reasoning patterns stored as Judgment → HAS_STEP → ReasoningTrace.
+
+decision_traces:
+
+  - id: commit_ingested
+    task: "Ingest commit {{commit.sha}} touching {{file.path}}"
+    steps:
+      - thought: "A new commit arrived; I need to know what it impacts"
+        action: "Record the Commit node and MODIFIES edges to changed files"
+      - thought: "Impact must propagate upward to business requirements"
+        action: "Run the impact lookup File → Component → Functionality → Requirement"
+      - thought: "Downstream agents must re-verify the affected scope"
+        action: "Trigger the functional test and security scan build cycle"
+    outcome_template: "Commit {{commit.sha}} linked; {{impact_count}} requirements flagged for re-verification"
+
+  - id: functional_run_complete
+    task: "Re-run functional tests for functionality {{functionality.name}}"
+    steps:
+      - thought: "Identify which tests verify the affected functionality"
+        action: "Query active Tests linked via VERIFIES to the functionality"
+      - thought: "Each test needs a fresh execution record"
+        action: "Execute tests and create TestRun nodes with INSTANCE_OF edges"
+      - thought: "Coverage state may have changed"
+        action: "Recompute acceptance-criterion coverage from passing runs"
+    outcome_template: "{{run_count}} test runs recorded; coverage {{coverage_pct}}%"
+
+  - id: security_scan_complete
+    task: "Scan changed components for security issues"
+    steps:
+      - thought: "Static analysis should focus on the components touched by the commit"
+        action: "Run the security scanner over the affected source files"
+      - thought: "Findings must be linked to the components they affect"
+        action: "Create SecurityFinding nodes with AFFECTS edges and severity"
+      - thought: "High-severity findings on P0 requirements need escalation"
+        action: "Propagate finding impact up to requirements and flag priorities"
+    outcome_template: "{{finding_count}} findings recorded ({{highest_severity}} highest)"
+
+  - id: health_report_generated
+    task: "Produce the pipeline health report"
+    steps:
+      - thought: "I need the current coverage picture"
+        action: "Count acceptance criteria with at least one passing TestRun"
+      - thought: "Open security findings affect the verdict"
+        action: "Aggregate open SecurityFinding counts by severity"
+      - thought: "Coverage and findings together determine pipeline health"
+        action: "Create the Report node and a Judgment with PRODUCED edge"
+    outcome_template: "Report created: coverage {{coverage_pct}}%, {{open_findings}} open findings — {{verdict}}"
+
+# ─── Demo Scenarios ────────────────────────────────────────────────────────────
+
+demo_scenarios:
+
+  - name: Portfolio & Requirements
+    prompts:
+      - "How is the Meridian project structured into epics?"
+      - "List the P0 requirements and which epic each belongs to"
+      - "Show me the full audit chain for the account opening requirement"
+
+  - name: Coverage & Quality
+    prompts:
+      - "What is the current test coverage?"
+      - "Which acceptance criteria have no passing test runs?"
+      - "What did the functional tester decide in its last run?"
+
+  - name: Security & Audit
+    prompts:
+      - "Are there any open security findings on high-priority requirements?"
+      - "Which files were touched by the last commit and what requirements are affected?"
+      - "Show me the reasoning steps behind the latest health report"
+
+# ─── Agent Tools ───────────────────────────────────────────────────────────────
+# Parameterized read-only Cypher, mirroring the live tools in src/chat_tools.py.
+
+agent_tools:
+
+  - name: get_portfolio
+    description: Show the portfolio hierarchy - the project, its epics, and how many requirements each epic contains
+    cypher: |
+      MATCH (p:Project)-[:HAS_EPIC]->(e:Epic)
+      OPTIONAL MATCH (e)-[:HAS_REQUIREMENT]->(r:Requirement)
+      RETURN p.id AS project_id, p.name AS project_name,
+             e.id AS epic_id, e.name AS epic_name,
+             count(r) AS requirement_count
+      ORDER BY e.id
+      LIMIT $limit
+    parameters:
+      - name: limit
+        type: integer
+        default: 25
+
+  - name: list_requirements
+    description: List requirements with id, title, priority, and regulatory control, optionally filtered by a title/id substring
+    cypher: |
+      MATCH (r:Requirement)
+      WHERE $search = ''
+         OR toLower(coalesce(r.title, '')) CONTAINS toLower($search)
+         OR toLower(r.id) CONTAINS toLower($search)
+      RETURN r.id AS id, r.title AS title, r.priority AS priority,
+             r.reg_control AS reg_control
+      ORDER BY r.id
+      LIMIT $limit
+    parameters:
+      - name: search
+        type: string
+        description: Case-insensitive substring matched against title or id; empty string returns all
+        default: ""
+      - name: limit
+        type: integer
+        default: 25
+
+  - name: get_audit_chain
+    description: Retrieve the full provenance chain for a requirement - Requirement to Functionality to Component to File, plus the commits that modified the file
+    cypher: |
+      MATCH p = (r:Requirement {id: $requirement_id})
+        -[:REALIZED_BY]->(:Functionality)
+        -[:COMPOSED_OF]->(:Component)
+        -[:IMPLEMENTED_BY]->(f:File)
+      OPTIONAL MATCH p2 = (:Commit)-[:MODIFIES]->(f)
+      RETURN p, p2
+      LIMIT 25
+    parameters:
+      - name: requirement_id
+        type: string
+        description: Logical requirement id, e.g. req-account-opening
+
+  - name: get_open_security_findings
+    description: List open security findings and the requirements they affect, optionally filtered by severity
+    cypher: |
+      MATCH (sf:SecurityFinding {status: 'open'})-[:AFFECTS]->(c:Component)
+        <-[:COMPOSED_OF]-(:Functionality)<-[:REALIZED_BY]-(r:Requirement)
+      WHERE $severity = '' OR toUpper(sf.severity) = toUpper($severity)
+      RETURN sf.id AS finding_id, sf.severity AS severity, sf.title AS title,
+             c.name AS component, r.id AS requirement_id, r.title AS requirement,
+             r.priority AS priority
+      LIMIT $limit
+    parameters:
+      - name: severity
+        type: string
+        description: Optional severity filter (LOW, MEDIUM, HIGH, CRITICAL); empty string returns all
+        default: ""
+      - name: limit
+        type: integer
+        default: 50
+
+  - name: get_decision_traces
+    description: Retrieve agent judgments with their auditable reasoning steps, optionally filtered by agent role
+    cypher: |
+      MATCH (j:Judgment)
+      WHERE $agent_role = '' OR j.agent_role = $agent_role
+      OPTIONAL MATCH (j)-[:HAS_STEP]->(t:ReasoningTrace)
+      WITH j, t ORDER BY t.timestamp
+      RETURN j.id AS judgment_id, j.label AS label, j.agent_role AS agent_role,
+             j.confidence AS confidence, j.reasoning AS reasoning,
+             collect(t.decision) AS steps
+      LIMIT $limit
+    parameters:
+      - name: agent_role
+        type: string
+        description: Optional filter, e.g. qa_supervisor; empty string returns all
+        default: ""
+      - name: limit
+        type: integer
+        default: 20
+
+  - name: get_coverage_summary
+    description: Compute acceptance-criterion test coverage - total criteria, criteria with at least one passing test run, and the coverage percentage
+    cypher: |
+      MATCH (ac:AcceptanceCriterion)
+      OPTIONAL MATCH (tr:TestRun {outcome: 'pass'})-[:INSTANCE_OF]->(:Test)
+        -[:COVERS_CRITERION]->(ac)
+      WITH count(DISTINCT ac) AS total_ac,
+           count(DISTINCT CASE WHEN tr IS NOT NULL THEN ac END) AS covered_ac
+      RETURN total_ac, covered_ac,
+             CASE WHEN total_ac = 0 THEN 0.0
+                  ELSE round(100.0 * covered_ac / total_ac, 1) END AS coverage_pct
+      LIMIT 1
+    parameters: []
+
+# ─── System Prompt ─────────────────────────────────────────────────────────────
+
+system_prompt: |
+  You are the CoGMEM-QA assistant: an auditable QA agent operating on a
+  memory-grounded knowledge graph for a software delivery pipeline. The graph
+  is organised in six layers - Portfolio (Project, Epic), Requirements
+  (Requirement, AcceptanceCriterion, Actor), Capability (Functionality,
+  Component), Implementation (File, Commit), Evidence (Test, TestRun,
+  SecurityFinding, Report), and Reasoning (Judgment, ReasoningTrace).
+
+  You MUST use the available tools to query the knowledge graph before
+  answering any question about its contents. You have read-only access -
+  never attempt to modify the graph. When assessing quality, always trace the
+  provenance chain (Requirement -> Functionality -> Component -> File <-
+  Commit), check acceptance-criterion coverage from passing test runs, and
+  surface open security findings with their affected requirements. Cite
+  concrete node ids, titles, and numbers from the graph in every answer.
+
+# ─── Visualization ─────────────────────────────────────────────────────────────
+
+visualization:
+  node_colors:
+    Project:             "#F43F5E"
+    Epic:                "#F43F5E"
+    Requirement:         "#2563EB"
+    AcceptanceCriterion: "#2563EB"
+    Actor:               "#2563EB"
+    Functionality:       "#6366F1"
+    Component:           "#6366F1"
+    File:                "#16A34A"
+    Commit:              "#16A34A"
+    Test:                "#F59E0B"
+    TestRun:             "#F59E0B"
+    SecurityFinding:     "#F59E0B"
+    Report:              "#F59E0B"
+    Judgment:            "#9333EA"
+    ReasoningTrace:      "#9333EA"
+  node_sizes:
+    Project: 30
+    Epic: 25
+    Requirement: 25
+    Functionality: 20
+    Component: 20
+    File: 15
+    Commit: 15
+    Test: 15
+    TestRun: 12
+    SecurityFinding: 18
+    Report: 18
+    Judgment: 18
+    ReasoningTrace: 10
+  default_cypher: "MATCH (p:Project)-[he:HAS_EPIC]->(e:Epic)-[hr:HAS_REQUIREMENT]->(r:Requirement)-[rb:REALIZED_BY]->(f:Functionality) RETURN p, he, e, hr, r, rb, f LIMIT 100"

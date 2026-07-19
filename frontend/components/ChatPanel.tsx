@@ -3,15 +3,29 @@
 import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
+  BrainCircuit,
   CheckCircle2,
   Loader2,
   Puzzle,
   Send,
+  Settings2,
   Wrench,
 } from "lucide-react";
 import { postChat } from "@/lib/api";
 import { DEMO_SCENARIOS } from "@/lib/scenarios";
-import type { ApiGraph, ChatMessage, ChatTurn } from "@/lib/types";
+import type { ApiGraph, ChatMessage } from "@/lib/types";
+
+const SESSION_KEY = "cogmem-chat-session";
+
+/** Session id persisted per browser tab; lazily created (SSR-safe). */
+function getSessionId(): string {
+  let id = sessionStorage.getItem(SESSION_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    sessionStorage.setItem(SESSION_KEY, id);
+  }
+  return id;
+}
 
 interface Props {
   /** Text injected into the composer (e.g. "Ask about this" from the graph). */
@@ -70,12 +84,24 @@ function ToolCallCard({ message }: { message: ChatMessage }) {
   );
 }
 
-function LabelChips({ counts }: { counts: Record<string, number> }) {
-  const entries = Object.entries(counts);
-  if (!entries.length) return null;
+function BadgeRow({ message }: { message: ChatMessage }) {
+  const labelEntries = Object.entries(message.labelCounts ?? {});
+  const entities = message.entitiesExtracted ?? 0;
+  const preferences = message.preferencesDetected ?? 0;
+  if (!labelEntries.length && !entities && !preferences) return null;
   return (
     <div data-testid="chat-badges" className="flex flex-wrap gap-2">
-      {entries.map(([label, count]) => (
+      {entities > 0 && (
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
+          <BrainCircuit size={13} /> {entities} {entities === 1 ? "entity" : "entities"} extracted
+        </span>
+      )}
+      {preferences > 0 && (
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700">
+          <Settings2 size={13} /> {preferences} {preferences === 1 ? "preference" : "preferences"} detected
+        </span>
+      )}
+      {labelEntries.map(([label, count]) => (
         <span
           key={label}
           className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700"
@@ -105,11 +131,6 @@ export default function ChatPanel({ seedPrompt, onGraphData, onDone }: Props) {
     const question = text.trim();
     if (!question || busy) return;
 
-    // Client-held history: prior completed turns only.
-    const history: ChatTurn[] = messages
-      .filter((m) => !m.error && !m.pending)
-      .map((m) => ({ role: m.role === "user" ? "user" : "model", text: m.text }));
-
     setBusy(true);
     setInput("");
     setMessages((prev) => [
@@ -119,7 +140,7 @@ export default function ChatPanel({ seedPrompt, onGraphData, onDone }: Props) {
     ]);
 
     try {
-      const result = await postChat(question, history);
+      const result = await postChat(question, getSessionId());
       if (result.graph_data.nodes.length) onGraphData?.(result.graph_data);
       setMessages((prev) => [
         ...prev.slice(0, -1),
@@ -128,6 +149,8 @@ export default function ChatPanel({ seedPrompt, onGraphData, onDone }: Props) {
           text: result.response,
           toolCalls: result.tool_calls,
           labelCounts: labelCountsFrom(result.graph_data),
+          entitiesExtracted: result.entities_extracted,
+          preferencesDetected: result.preferences_detected,
         },
       ]);
       onDone?.();
@@ -192,7 +215,7 @@ export default function ChatPanel({ seedPrompt, onGraphData, onDone }: Props) {
                   {m.text}
                 </div>
               )}
-              {m.labelCounts && <LabelChips counts={m.labelCounts} />}
+              {!m.pending && !m.error && <BadgeRow message={m} />}
             </div>
           )
         )}

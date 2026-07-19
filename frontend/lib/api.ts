@@ -1,6 +1,6 @@
 /** Thin fetch wrappers over the CoGMEM Inspector backend. */
 
-import type { ChatResult, ChatTurn, Report, Trace } from "./types";
+import type { ChatResult, Report, Trace } from "./types";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -18,11 +18,11 @@ async function checkOk(res: Response): Promise<Response> {
   return res;
 }
 
-export async function postChat(message: string, history: ChatTurn[]): Promise<ChatResult> {
+export async function postChat(message: string, sessionId: string): Promise<ChatResult> {
   const res = await fetch(`${API_URL}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ message, session_id: sessionId }),
   });
   await checkOk(res);
   return res.json();

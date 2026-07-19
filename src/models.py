@@ -4,7 +4,7 @@ Pydantic v2 domain models for the CoGMEM-QA four-layer context graph.
 Every node model inherits from BaseNode (validates id is non-empty).
 Every edge model inherits from BaseEdge (valid_from required, valid_to defaults None).
 
-19 node models  ·  11 edge models
+21 node models  ·  13 edge models
 """
 from __future__ import annotations
 
@@ -37,6 +37,19 @@ class BaseEdge(BaseModel):
     to_id: str
     valid_from: datetime
     valid_to: Optional[datetime] = None
+
+
+# ─── Portfolio layer ───────────────────────────────────────────────────────────
+
+
+class Project(BaseNode):
+    name: str
+    description: Optional[str] = None
+
+
+class Epic(BaseNode):
+    name: str
+    description: Optional[str] = None
 
 
 # ─── Requirements layer ────────────────────────────────────────────────────────
@@ -168,6 +181,14 @@ class Report(BaseNode):
 # ─── Edge models ───────────────────────────────────────────────────────────────
 # One model per relationship type defined in schema.yaml.
 # All carry valid_from / valid_to from BaseEdge.
+
+
+class HasEpicEdge(BaseEdge):
+    """Project -[HAS_EPIC]-> Epic"""
+
+
+class HasRequirementEdge(BaseEdge):
+    """Epic -[HAS_REQUIREMENT]-> Requirement"""
 
 
 class RealizedByEdge(BaseEdge):

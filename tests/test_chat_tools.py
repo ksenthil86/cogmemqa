@@ -147,3 +147,19 @@ def test_run_tool_bad_args(neo4j_driver):
 def test_registry_declarations_match_names():
     for name, spec in CHAT_TOOLS.items():
         assert spec.declaration.name == name
+
+
+def test_get_portfolio_returns_hierarchy(neo4j_driver):
+    from scripts.backfill_portfolio import backfill_portfolio, PROJECT, EPICS
+    from src.chat_tools import get_portfolio
+
+    backfill_portfolio(neo4j_driver)  # idempotent — safe if already seeded
+    result = get_portfolio(neo4j_driver)
+
+    assert isinstance(result.data, list) and len(result.data) == len(EPICS)
+    row = result.data[0]
+    assert row["project_id"] == PROJECT.id
+    assert {"epic_id", "epic_name", "requirement_count"} <= set(row.keys())
+    # graph payload contains the project + epics for the canvas
+    labels = {lbl for n in result.graph["nodes"] for lbl in n["labels"]}
+    assert {"Project", "Epic"} <= labels

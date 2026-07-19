@@ -8,6 +8,7 @@ import { API_URL } from "@/lib/api";
 
 function getNodeColor(labels: string[]): string {
   const first = labels[0] ?? "";
+  if (["Project", "Epic"].includes(first)) return "#F43F5E";
   if (["Requirement", "AcceptanceCriterion", "Actor"].includes(first)) return "#3B82F6";
   if (first === "Functionality") return "#6366F1";
   if (["Component", "File", "Commit"].includes(first)) return "#22C55E";

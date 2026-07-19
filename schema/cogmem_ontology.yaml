@@ -20,6 +20,42 @@ domain:
 
 entity_types:
 
+  # ── Layer 0: Portfolio ─────────────────────────────────────────────────────
+
+  - label: Project
+    pole_type: OBJECT
+    subtype: project
+    color: "#F43F5E"
+    icon: briefcase
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+        required: false
+
+  - label: Epic
+    pole_type: OBJECT
+    subtype: epic
+    color: "#F43F5E"
+    icon: layers
+    properties:
+      - name: id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+        required: false
+
   # ── Layer 1: Requirements ──────────────────────────────────────────────────
 
   - label: Requirement
@@ -312,6 +348,17 @@ entity_types:
 # All carry valid_from / valid_to timestamps (bi-temporal provenance).
 
 relationships:
+
+  # Portfolio hierarchy
+  - type: HAS_EPIC
+    source: Project
+    target: Epic
+    description: "A project contains one or more epics"
+
+  - type: HAS_REQUIREMENT
+    source: Epic
+    target: Requirement
+    description: "An epic contains one or more requirements"
 
   # Requirements → Capability
   - type: REALIZED_BY

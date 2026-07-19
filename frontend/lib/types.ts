@@ -31,6 +31,10 @@ export interface ChatResult {
   response: string;
   tool_calls: ToolCall[];
   graph_data: ApiGraph;
+  session_id: string;
+  memory_active?: boolean;
+  entities_extracted?: number;
+  preferences_detected?: number;
 }
 
 export interface ChatTurn {
@@ -44,6 +48,9 @@ export interface ChatMessage {
   toolCalls?: ToolCall[];
   /** distinct node-label counts from graph_data, e.g. {Requirement: 2} */
   labelCounts?: Record<string, number>;
+  /** memory extraction counts from the backend, shown as badges */
+  entitiesExtracted?: number;
+  preferencesDetected?: number;
   error?: boolean;
   pending?: boolean;
 }

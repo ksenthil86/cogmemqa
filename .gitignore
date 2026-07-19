@@ -10,3 +10,5 @@ venv/
 tests/screenshots/
 frontend/node_modules
 frontend/.next
+frontend/tsconfig.tsbuildinfo
+.claude/

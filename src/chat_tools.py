@@ -70,6 +70,31 @@ def assert_read_only(query: str) -> None:
 
 # ── Tool implementations ──────────────────────────────────────────────────────
 
+def get_portfolio(driver: Driver) -> ToolResult:
+    with driver.session() as s:
+        records = list(s.run(
+            "MATCH p = (proj:Project)-[:HAS_EPIC]->(e:Epic) "
+            "OPTIONAL MATCH (e)-[:HAS_REQUIREMENT]->(r:Requirement) "
+            "RETURN p, proj.id AS project_id, proj.name AS project_name, "
+            "e.id AS epic_id, e.name AS epic_name, e.description AS epic_description, "
+            "count(r) AS requirement_count "
+            "ORDER BY e.id"
+        ))
+    graph = extract_graph_from_records(records)
+    data = [
+        {
+            "project_id":        rec["project_id"],
+            "project_name":      rec["project_name"],
+            "epic_id":           rec["epic_id"],
+            "epic_name":         rec["epic_name"],
+            "epic_description":  rec["epic_description"],
+            "requirement_count": rec["requirement_count"],
+        }
+        for rec in records
+    ]
+    return ToolResult(data=data, graph=graph if graph["nodes"] else None)
+
+
 def get_health(driver: Driver) -> ToolResult:
     cov = memory_api.coverage_summary(driver)
     sec = memory_api.security_summary(driver)
@@ -198,6 +223,18 @@ class ToolSpec:
 
 
 CHAT_TOOLS: dict[str, ToolSpec] = {
+    "get_portfolio": ToolSpec(
+        fn=get_portfolio,
+        declaration=types.FunctionDeclaration(
+            name="get_portfolio",
+            description=(
+                "Show the portfolio hierarchy: the Project, its Epics, and how "
+                "many Requirements each Epic contains. Use for questions about "
+                "project or epic structure."
+            ),
+            parameters=types.Schema(type=types.Type.OBJECT, properties={}),
+        ),
+    ),
     "get_health": ToolSpec(
         fn=get_health,
         declaration=types.FunctionDeclaration(
