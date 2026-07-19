@@ -17,7 +17,7 @@ git clone https://github.com/ksenthil86/cogmemqa.git
 cd cogmemqa
 
 # 2. Install Python dependencies
-pip install -e ".[dev]"
+pip install -e "./backend[dev]"
 
 # 3. Configure environment
 cp .env.example .env
@@ -28,11 +28,11 @@ docker compose up -d
 # Wait ~15 s, then verify: docker compose ps
 
 # 5. Seed the graph (runs all agents over 5 commits)
-python scripts/replay_meridian.py
+cd backend && python scripts/replay_meridian.py
 
 # 6. Install frontend and start the inspector dashboard
 cd frontend && npm install && npm run dev &    # Terminal A — frontend (port 3000)
-cd .. && uvicorn src.api:app --port 8000       # Terminal B — backend  (port 8000)
+cd backend && uvicorn app.api:app --port 8000       # Terminal B — backend  (port 8000)
 ```
 
 Open **http://localhost:3000**
@@ -93,7 +93,7 @@ B7  QASupervisorAgent      → Report node (coverage %, open findings)
 ```bash
 git clone https://github.com/ksenthil86/cogmemqa.git
 cd cogmemqa
-pip install -e ".[dev]"
+pip install -e "./backend[dev]"
 ```
 
 ### 2. Configure environment
@@ -142,7 +142,7 @@ cd ..
 ### Seed the graph — replay five commits
 
 ```bash
-python scripts/replay_meridian.py
+cd backend && python scripts/replay_meridian.py
 ```
 
 Provisions the Neo4j schema, seeds the Meridian Banking spec (5 requirements, 10 ACs, 10 tests), then replays 5 commits through the full agent pipeline (B5 → B6 → B7).
@@ -169,7 +169,7 @@ CoGMEM-QA Build-Cycle Replay — Meridian Banking App
 ### Inspect the graph (CLI)
 
 ```bash
-python scripts/demo_summary.py
+cd backend && python scripts/demo_summary.py
 ```
 
 ```
@@ -189,13 +189,13 @@ Provenance chain for req-account-opening (Account Opening):
 Query a specific requirement:
 
 ```bash
-python scripts/demo_summary.py --req req-kyc
+cd backend && python scripts/demo_summary.py --req req-kyc
 ```
 
 ### Dry run (no Neo4j needed)
 
 ```bash
-python scripts/replay_meridian.py --dry-run
+cd backend && python scripts/replay_meridian.py --dry-run
 ```
 
 ---
@@ -206,7 +206,7 @@ After seeding the graph, start the full dashboard:
 
 ```bash
 # Terminal 1 — API backend (port 8000)
-uvicorn src.api:app --host 0.0.0.0 --port 8000 --reload
+cd backend && uvicorn app.api:app --host 0.0.0.0 --port 8000 --reload
 
 # Terminal 2 — Next.js frontend (port 3000)
 cd frontend && npm run dev
@@ -272,7 +272,7 @@ Notes:
 ## Run the Test Suite
 
 ```bash
-pytest tests/
+cd backend && pytest tests/
 ```
 
 362 tests run against a real Neo4j instance (no mocks). Each module cleans its own nodes.
@@ -280,17 +280,17 @@ pytest tests/
 Run a specific phase gate:
 
 ```bash
-pytest tests/test_e2e_phase5.py   # Sprint v5 gate (298 total)
-pytest tests/test_e2e_phase4.py   # Sprint v4 gate
-pytest tests/test_e2e_phase3.py   # Sprint v3 gate
-pytest tests/test_e2e_phase2.py   # Sprint v2 gate
-pytest tests/test_e2e.py          # Sprint v1 gate (77 tests)
+cd backend && pytest tests/test_e2e_phase5.py   # Sprint v5 gate (298 total)
+cd backend && pytest tests/test_e2e_phase4.py   # Sprint v4 gate
+cd backend && pytest tests/test_e2e_phase3.py   # Sprint v3 gate
+cd backend && pytest tests/test_e2e_phase2.py   # Sprint v2 gate
+cd backend && pytest tests/test_e2e.py          # Sprint v1 gate (77 tests)
 ```
 
 Run the FastAPI endpoint tests (Sprint v6):
 
 ```bash
-pytest tests/test_api.py tests/test_api_graph.py tests/test_api_expand.py tests/test_api_audit.py
+cd backend && pytest tests/test_api.py tests/test_api_graph.py tests/test_api_expand.py tests/test_api_audit.py
 ```
 
 Run the frontend E2E tests (Playwright):
@@ -304,7 +304,7 @@ cd frontend && npx playwright test
 ## Security Scan
 
 ```bash
-python -m bandit -r src/ -q
+python -m bandit -r backend/app/ -q
 ```
 
 Zero findings. `fixtures/meridian_app/` contains intentional Bandit findings used as test targets for B6 and is excluded from the scan.
@@ -316,55 +316,39 @@ Zero findings. `fixtures/meridian_app/` contains intentional Bandit findings use
 ```
 cogmemqa/
 ├── docker-compose.yml            ← Neo4j 5.x service
-├── pyproject.toml                ← Python dependencies + tool config
+├── Makefile                      ← install / dev-backend / dev-frontend / seed / test
 ├── .env.example                  ← copy to .env and fill in keys
-├── schema/
-│   └── schema.yaml               ← 19 node types, 11 edge types, 5 layers
-├── fixtures/
-│   ├── meridian_spec.md          ← Meridian Bank PRD (5 reqs, 10 ACs)
-│   ├── meridian_parsed.json      ← ground-truth parsed spec
-│   ├── meridian_commits.json     ← 5 deterministic commit fixtures
-│   └── meridian_app/             ← FastAPI stub (intentional B105 finding)
-├── src/
-│   ├── api.py                    ← FastAPI inspector API (5 endpoints)
-│   ├── db.py                     ← Neo4j driver singleton
-│   ├── models.py                 ← 19 Pydantic node models + 11 edge models
-│   ├── memory_api.py             ← INGEST / RETRIEVE / RECONCILE / provenance
-│   ├── provisioner.py            ← schema constraints + indexes (idempotent)
-│   ├── retrieval_policies.py     ← per-role graph layer access control
-│   ├── agent_base.py             ← BaseAgent(role, driver, llm_fn)
-│   ├── orchestrator.py           ← run_build_cycle(driver, b5, b6, b7)
-│   ├── llm.py                    ← Gemini client (google-genai)
-│   └── agents/
-│       ├── requirements_parser.py    ← B3
-│       ├── test_case_generator.py    ← B4
-│       ├── functional_tester.py      ← B5
-│       ├── security_tester.py        ← B6
-│       ├── qa_supervisor.py          ← B7
-│       └── commit_ingestion.py       ← B8
+├── schema/                       ← shared source of truth (backend + tooling)
+│   ├── schema.yaml               ← 21 node types, 13 edge types, 6 layers
+│   └── cogmem-qa.yaml            ← create-context-graph domain (drives /api/config + prompt)
+├── backend/                      ← self-contained Python service
+│   ├── pyproject.toml            ← dependencies + tool config
+│   ├── app/
+│   │   ├── api.py                ← FastAPI inspector API (chat, SSE, config, cypher…)
+│   │   ├── chat_agent.py         ← Gemini function-calling loop
+│   │   ├── chat_tools.py         ← predefined Cypher tools + read-only guard
+│   │   ├── memory_client.py      ← neo4j-agent-memory conversation memory
+│   │   ├── ontology.py           ← runtime loader over schema/cogmem-qa.yaml
+│   │   ├── db.py                 ← Neo4j driver singleton
+│   │   ├── models.py             ← 21 Pydantic node models + 13 edge models
+│   │   ├── memory_api.py         ← INGEST / RETRIEVE / RECONCILE / provenance
+│   │   ├── provisioner.py        ← schema constraints + indexes (idempotent)
+│   │   ├── retrieval_policies.py ← per-role graph layer access control
+│   │   ├── agent_base.py / orchestrator.py / llm.py
+│   │   └── agents/               ← B3-B8 QA agent swarm
+│   ├── fixtures/                 ← Meridian spec, commits, stub app
+│   ├── scripts/
+│   │   ├── replay_meridian.py    ← demo entry point
+│   │   ├── backfill_portfolio.py ← Project → Epic → Requirement backfill
+│   │   └── demo_summary.py       ← live graph query
+│   └── tests/                    ← 447 pytest (e2e gates + API + chat + memory)
 ├── frontend/                     ← Next.js 15 inspector dashboard
 │   ├── app/                      ← App Router pages
-│   ├── components/
-│   │   ├── GraphCanvas.tsx       ← NVL interactive graph (InteractiveNvlWrapper)
-│   │   ├── HealthPanel.tsx       ← live metrics sidebar
-│   │   └── AuditPanel.tsx        ← provenance chain sidebar
+│   ├── components/               ← ChatPanel, ContextGraphPanel, GraphCanvas…
+│   ├── lib/                      ← chatStream (SSE), config, api, types
 │   └── package.json
-├── scripts/
-│   ├── replay_meridian.py        ← demo entry point
-│   └── demo_summary.py           ← live graph query
-├── sprints/
-│   ├── v1/ … v6/                 ← PRD + TASKS per sprint
-└── tests/
-    ├── conftest.py               ← session-scoped Neo4j driver fixture
-    ├── test_e2e.py               ← Phase 1 gate (77 tests)
-    ├── test_e2e_phase2.py        ← Phase 2 gate
-    ├── test_e2e_phase3.py        ← Phase 3 gate
-    ├── test_e2e_phase4.py        ← Phase 4 gate
-    ├── test_e2e_phase5.py        ← Phase 5 gate (298 total)
-    ├── test_api.py               ← /api/health + /api/schema (Sprint v6)
-    ├── test_api_graph.py         ← /api/graph (Sprint v6)
-    ├── test_api_expand.py        ← /api/graph/expand (Sprint v6)
-    └── test_api_audit.py         ← /api/audit/{req_id} (Sprint v6)
+└── sprints/
+    └── v1/ … v10/                ← PRD + TASKS per sprint
 ```
 
 ---

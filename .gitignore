@@ -8,6 +8,7 @@ dist/
 .venv/
 venv/
 tests/screenshots/
+backend/tests/screenshots/
 frontend/node_modules
 frontend/.next
 frontend/tsconfig.tsbuildinfo
